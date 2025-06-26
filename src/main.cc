@@ -6,7 +6,7 @@
  * COPYING.md in the root of the source code directory.
  *
  ****************************************************************************/
-
+#include "unistd.h"
 #include <QtQuick/QQuickWindow>
 #include <QtWidgets/QApplication>
 
