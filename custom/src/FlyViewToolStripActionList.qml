@@ -19,17 +19,30 @@ ToolStripActionList {
 
     model: [
         PreFlightCheckListShowAction { onTriggered: displayPreFlightChecklist() },
-        GuidedActionTakeoff { },
-        GuidedActionLand { },
-        GuidedActionRTL { },
-        GuidedActionPause { },
-        FlyViewAdditionalActionsButton { },
+        
+        // 隐藏原生按钮，使用自定义的takeoff按钮
+        // GuidedActionTakeoff { },
+        // GuidedActionLand { },
+        // GuidedActionRTL { },
+        // GuidedActionPause { },
+        // FlyViewAdditionalActionsButton { },
+        
+        // 自定义的Takeoff按钮
         GuidedToolStripAction {
-            text:       _guidedController._customController.customButtonTitle
-            iconSource: "/res/gear-white.svg"
-            visible:    true
-            enabled:    true
-            actionID:   _guidedController._customController.actionCustomButton
-}
+            text:       "起飞"                    // 自定义起飞按钮文字
+            iconSource: "/res/takeoff.svg"           // 使用起飞图标
+            visible:    true                         // 始终可见
+            enabled:    true                         // 始终可用
+            actionID:   _guidedController._customController.actionCustomTakeoff
+        },
+        
+        // 自定义的Home按钮
+        GuidedToolStripAction {
+            text:       "Home"                // 自定义设置Home点按钮文字
+            iconSource: "/res/home.svg"             // 使用自定义小房子图标
+            visible:    true                       // 始终可见
+            enabled:    true                       // 始终可用
+            actionID:   _guidedController._customController.actionCustomHome
+        }
     ]
 }
