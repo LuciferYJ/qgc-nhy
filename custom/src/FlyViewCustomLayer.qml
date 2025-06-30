@@ -60,7 +60,7 @@ Item {
         leftEdgeBottomInset:    parentToolInsets.leftEdgeBottomInset
         rightEdgeTopInset:      parentToolInsets.rightEdgeTopInset
         rightEdgeCenterInset:   parentToolInsets.rightEdgeCenterInset
-        rightEdgeBottomInset:   parent.width - compassBackground.x
+        rightEdgeBottomInset:   parent.width - customStatusPanel.x
         topEdgeLeftInset:       parentToolInsets.topEdgeLeftInset
         topEdgeCenterInset:     compassArrowIndicator.y + compassArrowIndicator.height
         topEdgeRightInset:      parentToolInsets.topEdgeRightInset
@@ -160,6 +160,15 @@ Item {
         anchors.topMargin:          -height / 2
         anchors.horizontalCenter:   parent.horizontalCenter
         visible:                    false  // 隐藏罗盘箭头指示器
+    }
+
+    // 自定义状态面板 - 位于罗盘左侧
+    Loader {
+        id:                     customStatusPanel
+        anchors.bottom:         compassBackground.bottom
+        anchors.right:          compassBackground.left
+        anchors.rightMargin:    _toolsMargin
+        source:                 "qrc:/Custom/qml/QGroundControl/FlightDisplay/CustomStatusPanel.qml"
     }
 
     Rectangle {

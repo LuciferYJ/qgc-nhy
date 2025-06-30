@@ -11,6 +11,7 @@
 
 #include <QObject>
 #include <QByteArray>
+#include <QTimer>
 #include "UdpCommandLink.h"
 #include "QGCMAVLink.h"
 
@@ -37,6 +38,11 @@ class CustomStatusReceiver : public QObject
     Q_PROPERTY(double longitude READ longitude NOTIFY positionChanged)
     Q_PROPERTY(float altitude READ altitude NOTIFY positionChanged)
     
+    // 姿态信息
+    Q_PROPERTY(float yaw READ yaw NOTIFY attitudeDataChanged)
+    Q_PROPERTY(float pitch READ pitch NOTIFY attitudeDataChanged)
+    Q_PROPERTY(float roll READ roll NOTIFY attitudeDataChanged)
+    
 public:
     explicit CustomStatusReceiver(QObject *parent = nullptr);
     ~CustomStatusReceiver();
@@ -55,6 +61,11 @@ public:
     double longitude() const { return _longitude; }
     float altitude() const { return _altitude; }
     
+    // 姿态信息
+    float yaw() const { return _yaw; }
+    float pitch() const { return _pitch; }
+    float roll() const { return _roll; }
+    
     /**
      * @brief 启动状态接收
      */
@@ -72,11 +83,19 @@ signals:
     // 位置信息信号
     void positionChanged();
     
+    // 姿态信息信号
+    void attitudeDataChanged();
+    
 private slots:
     /**
      * @brief 处理接收到的UDP数据
      */
     void _handleReceivedData(const QByteArray &data);
+    
+    /**
+     * @brief 检查连接超时
+     */
+    void _checkConnectionTimeout();
     
 private:
     /**
@@ -89,6 +108,11 @@ private:
      */
     void _handleGlobalPositionInt(const mavlink_message_t &message);
     
+    /**
+     * @brief 处理姿态信息
+     */
+    void _handleAttitude(const mavlink_message_t &message);
+    
     // 单例相关
     static CustomStatusReceiver* _instance;
     
@@ -99,10 +123,19 @@ private:
     bool _connected;
     qint64 _lastMessageTime;
     
+    // 超时检测
+    QTimer* _timeoutTimer;
+    static const qint64 CONNECTION_TIMEOUT_MS = 3000; // 3秒超时
+    
     // GPS位置信息
     double _latitude;
     double _longitude;
     float _altitude;
+    
+    // 姿态信息
+    float _yaw;
+    float _pitch;
+    float _roll;
     
     // MAVLink解析
     mavlink_status_t _mavlinkStatus;

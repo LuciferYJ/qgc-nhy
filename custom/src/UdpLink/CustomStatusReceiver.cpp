@@ -13,6 +13,10 @@
 #include <QDateTime>
 #include <cmath>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 // 静态成员初始化
 CustomStatusReceiver* CustomStatusReceiver::_instance = nullptr;
 
@@ -23,11 +27,20 @@ CustomStatusReceiver::CustomStatusReceiver(QObject *parent)
     , _latitude(0.0)
     , _longitude(0.0)
     , _altitude(0.0f)
+    , _yaw(0.0f)
+    , _pitch(0.0f)
+    , _roll(0.0f)
     , _lastMessageTime(0)
+    , _timeoutTimer(nullptr)
 {
     // 初始化MAVLink状态
     memset(&_mavlinkStatus, 0, sizeof(_mavlinkStatus));
     memset(&_mavlinkMessage, 0, sizeof(_mavlinkMessage));
+    
+    // 创建超时检测定时器
+    _timeoutTimer = new QTimer(this);
+    _timeoutTimer->setInterval(1000); // 每秒检查一次
+    connect(_timeoutTimer, &QTimer::timeout, this, &CustomStatusReceiver::_checkConnectionTimeout);
     
     qDebug() << "CustomStatusReceiver: 初始化完成";
 }
@@ -35,6 +48,9 @@ CustomStatusReceiver::CustomStatusReceiver(QObject *parent)
 CustomStatusReceiver::~CustomStatusReceiver()
 {
     stopReceiving();
+    if (_timeoutTimer) {
+        _timeoutTimer->stop();
+    }
     qDebug() << "CustomStatusReceiver: 析构完成";
 }
 
@@ -82,13 +98,19 @@ void CustomStatusReceiver::startReceiving()
                 this, &CustomStatusReceiver::_handleReceivedData);
     }
     
-    qDebug() << "CustomStatusReceiver: 开始接收位置数据";
-    qDebug() << "使用UDP链接 - 接收端口:" << _udpLink->getReceiveLocalPort();
-    qDebug() << "发送目标端口:" << _udpLink->getSendRemotePort();
+    // 启动超时检测定时器
+    _timeoutTimer->start();
+    
+    qDebug() << "CustomStatusReceiver: 开始接收数据，监听端口:" << _udpLink->getReceiveLocalPort();
 }
 
 void CustomStatusReceiver::stopReceiving()
 {
+    // 停止超时检测定时器
+    if (_timeoutTimer) {
+        _timeoutTimer->stop();
+    }
+    
     if (_udpLink) {
         disconnect(_udpLink, &UdpCommandLink::dataReceived, 
                    this, &CustomStatusReceiver::_handleReceivedData);
@@ -100,7 +122,7 @@ void CustomStatusReceiver::stopReceiving()
         emit connectedChanged();
     }
     
-    qDebug() << "CustomStatusReceiver: 停止接收位置数据";
+    qDebug() << "CustomStatusReceiver: 停止接收数据";
 }
 
 void CustomStatusReceiver::_handleReceivedData(const QByteArray &data)
@@ -118,9 +140,11 @@ void CustomStatusReceiver::_handleReceivedData(const QByteArray &data)
 
 void CustomStatusReceiver::_parseMavlinkMessage(const mavlink_message_t &message)
 {
-    // 只处理GLOBAL_POSITION_INT消息
+    // 处理不同类型的MAVLink消息
     if (message.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT) {
         _handleGlobalPositionInt(message);
+    } else if (message.msgid == MAVLINK_MSG_ID_ATTITUDE) {
+        _handleAttitude(message);
     }
 }
 
@@ -158,6 +182,61 @@ void CustomStatusReceiver::_handleGlobalPositionInt(const mavlink_message_t &mes
     
     if (locationChanged) {
         emit positionChanged();
+    }
+}
 
+void CustomStatusReceiver::_handleAttitude(const mavlink_message_t &message)
+{
+    mavlink_attitude_t attitude;
+    mavlink_msg_attitude_decode(&message, &attitude);
+    
+    // 更新连接状态
+    if (!_connected) {
+        _connected = true;
+        emit connectedChanged();
+        qDebug() << "CustomStatusReceiver: 开始接收姿态数据";
+    }
+    
+    _lastMessageTime = QDateTime::currentMSecsSinceEpoch();
+    
+    // 将弧度转换为度
+    float newYaw = attitude.yaw * 180.0f / M_PI;
+    float newPitch = attitude.pitch * 180.0f / M_PI;
+    float newRoll = attitude.roll * 180.0f / M_PI;
+    
+    // 标准化偏航角到0-360度范围
+    if (newYaw < 0) {
+        newYaw += 360.0f;
+    }
+    
+    bool attitudeChanged = false;
+    
+    if (fabs(newYaw - _yaw) > 0.1f || fabs(newPitch - _pitch) > 0.1f || fabs(newRoll - _roll) > 0.1f) {
+        _yaw = newYaw;
+        _pitch = newPitch;
+        _roll = newRoll;
+        attitudeChanged = true;
+    }
+    
+    if (attitudeChanged) {
+        emit attitudeDataChanged();
+    }
+}
+
+void CustomStatusReceiver::_checkConnectionTimeout()
+{
+    if (!_connected) {
+        return; // 如果本来就没连接，不需要检查
+    }
+    
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    qint64 timeSinceLastMessage = currentTime - _lastMessageTime;
+    
+    if (timeSinceLastMessage > CONNECTION_TIMEOUT_MS) {
+        // 超时，断开连接
+        _connected = false;
+        emit connectedChanged();
+        qDebug() << "CustomStatusReceiver: 连接超时，已断开连接。最后消息时间:" 
+                 << timeSinceLastMessage << "ms前";
     }
 } 
