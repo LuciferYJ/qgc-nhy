@@ -101,6 +101,7 @@ Item {
         radius:                     2
         clip:                       true
         anchors.horizontalCenter:   parent.horizontalCenter
+        visible:                    false  // 隐藏罗盘方向条
         Repeater {
             model: 720
             QGCLabel {
@@ -140,6 +141,7 @@ Item {
         anchors.top:                compassBar.top
         anchors.topMargin:          -headingIndicator.height / 2
         anchors.horizontalCenter:   parent.horizontalCenter
+        visible:                    false  // 隐藏航向数字指示器
         QGCLabel {
             text:                   _heading
             color:                  qgcPal.text
@@ -157,6 +159,7 @@ Item {
         anchors.top:                compassBar.bottom
         anchors.topMargin:          -height / 2
         anchors.horizontalCenter:   parent.horizontalCenter
+        visible:                    false  // 隐藏罗盘箭头指示器
     }
 
     Rectangle {

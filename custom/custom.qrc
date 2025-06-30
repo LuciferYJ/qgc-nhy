@@ -22,6 +22,7 @@
         <file alias="QGroundControl/FlightDisplay/CustomGuidedActionsController.qml">src/CustomGuidedActionsController.qml</file>
         <file alias="QGroundControl/FlightDisplay/FlyViewCustomLayer.qml">src/FlyViewCustomLayer.qml</file>
         <file alias="QGroundControl/FlightDisplay/FlyViewToolStripActionList.qml">src/FlyViewToolStripActionList.qml</file>
+        <file alias="QGroundControl/FlightDisplay/FlyViewBottomRightRowLayout.qml">src/FlyViewBottomRightRowLayout.qml</file>
     </qresource>
     <qresource prefix="/Custom">
         <file alias="HomePositionInputDialog.qml">res/Custom/HomePositionInputDialog.qml</file>
