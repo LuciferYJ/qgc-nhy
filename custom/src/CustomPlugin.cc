@@ -16,12 +16,16 @@
 #include "QGCMAVLink.h"
 #include "AppSettings.h"
 #include "BrandImageSettings.h"
+#include "UdpCommandLink.h"
+#include "CustomCommandSender.h"
+#include "CustomStatusReceiver.h"
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
 #include <QtCore/QApplicationStatic>
 #endif
 #include <QtQml/QQmlApplicationEngine>
 #include <QtQml/QQmlFile>
+#include <QtQml/qqml.h>
 
 QGC_LOGGING_CATEGORY(CustomLog, "gcs.custom.customplugin")
 
@@ -365,6 +369,28 @@ QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent)
     _qmlEngine = QGCCorePlugin::createQmlApplicationEngine(parent);
     _qmlEngine->addImportPath("qrc:/Custom/Widgets");
     // TODO: Investigate _qmlEngine->setExtraSelectors({"custom"})
+
+    // Register UDP Link QML types
+    qmlRegisterSingletonType<UdpCommandLink>("Custom.UdpLink", 1, 0, "UdpCommandLink", 
+        [](QQmlEngine* engine, QJSEngine* scriptEngine) -> QObject* {
+            Q_UNUSED(engine)
+            Q_UNUSED(scriptEngine)
+            return UdpCommandLink::create(engine, scriptEngine);
+        });
+    
+    qmlRegisterSingletonType<CustomCommandSender>("Custom.UdpLink", 1, 0, "CustomCommandSender", 
+        [](QQmlEngine* engine, QJSEngine* scriptEngine) -> QObject* {
+            Q_UNUSED(engine)
+            Q_UNUSED(scriptEngine)
+            return CustomCommandSender::create(engine, scriptEngine);
+        });
+    
+    qmlRegisterSingletonType<CustomStatusReceiver>("Custom.UdpLink", 1, 0, "CustomStatusReceiver", 
+        [](QQmlEngine* engine, QJSEngine* scriptEngine) -> QObject* {
+            Q_UNUSED(engine)
+            Q_UNUSED(scriptEngine)
+            return CustomStatusReceiver::create(engine, scriptEngine);
+        });
 
     _selector = new CustomOverrideInterceptor();
     _qmlEngine->addUrlInterceptor(_selector);

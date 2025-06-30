@@ -30,6 +30,9 @@ import QGroundControl.Vehicle
 // 3D Viewer modules
 import Viewer3D
 
+// Custom modules
+import "qrc:/Custom"
+
 Item {
     id: _root
 
@@ -100,6 +103,7 @@ Item {
             toolInsets:             customOverlay.totalToolInsets
             mapName:                "FlightDisplayView"
             enabled:                !viewer3DWindow.isOpen
+            customController:       _guidedController._customController
         }
 
         FlyViewVideo {

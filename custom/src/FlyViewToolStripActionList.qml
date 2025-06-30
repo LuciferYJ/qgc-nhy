@@ -36,13 +36,15 @@ ToolStripActionList {
             actionID:   _guidedController._customController.actionCustomTakeoff
         },
         
-        // 自定义的Home按钮
-        GuidedToolStripAction {
+        // 自定义的Home按钮 - 直接执行，无确认
+        ToolStripAction {
             text:       "Home"                // 自定义设置Home点按钮文字
             iconSource: "/res/home.svg"             // 使用自定义小房子图标
             visible:    true                       // 始终可见
             enabled:    true                       // 始终可用
-            actionID:   _guidedController._customController.actionCustomHome
+            onTriggered: {
+                _guidedController._customController._handleMyCustomHome()
+            }
         }
     ]
 }

@@ -43,6 +43,7 @@ FlightMap {
     property var    _geoFenceController:        planMasterController.geoFenceController
     property var    _rallyPointController:      planMasterController.rallyPointController
     property var    _activeVehicleCoordinate:   _activeVehicle ? _activeVehicle.coordinate : QtPositioning.coordinate()
+    property var    customController:           null  // 自定义控制器引用
     property real   _toolButtonTopMargin:       parent.height - mainWindow.height + (ScreenTools.defaultFontPixelHeight / 2)
     property real   _toolsMargin:               ScreenTools.defaultFontPixelWidth * 0.75
     property var    _flyViewSettings:           QGroundControl.settingsManager.flyViewSettings
@@ -756,13 +757,22 @@ FlightMap {
     }
 
     onMapClicked: (position) => {
+        // 首先检查自定义的地图点击处理
+        position = Qt.point(position.x, position.y)
+        var clickCoord = _root.toCoordinate(position, false /* clipToViewPort */)
+        
+        // 尝试处理自定义Home位置选择
+        if (customController && customController.handleMapClickForHomePosition && 
+            customController.handleMapClickForHomePosition(clickCoord)) {
+            return // 已被自定义处理器处理
+        }
+        
+        // 原有的地图点击处理逻辑
         if (!globals.guidedControllerFlyView.guidedUIVisible && 
             (globals.guidedControllerFlyView.showGotoLocation || globals.guidedControllerFlyView.showOrbit ||
              globals.guidedControllerFlyView.showROI || globals.guidedControllerFlyView.showSetHome ||
              globals.guidedControllerFlyView.showSetEstimatorOrigin)) {
 
-            position = Qt.point(position.x, position.y)
-            var clickCoord = _root.toCoordinate(position, false /* clipToViewPort */)
             // For some strange reason using mainWindow in mapToItem doesn't work, so we use globals.parent instead which also gets us mainWindow
             position = _root.mapToItem(globals.parent, position)
             var dropPanel = mapClickDropPanelComponent.createObject(mainWindow, { mapClickCoord: clickCoord, clickRect: Qt.rect(position.x, position.y, 0, 0) })
