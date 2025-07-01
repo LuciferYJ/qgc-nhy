@@ -142,7 +142,7 @@ Rectangle {
         // 地图选择提示
         QGCLabel {
             Layout.fillWidth: true
-            text: qsTr("💡 直接点击地图上的任意位置即可获取坐标")
+            text: qsTr("直接点击地图上的任意位置即可获取坐标")
             font.pointSize: ScreenTools.smallFontPointSize
             color: qgcPal.colorOrange
             wrapMode: Text.WordWrap

@@ -72,6 +72,7 @@ public:
     bool                    adjustSettingMetaData           (const QString& settingsGroup, FactMetaData& metaData) final;
     void                    paletteOverride                 (const QString &colorName, QGCPalette::PaletteColorInfo_t& colorInfo) final;
     QQmlApplicationEngine*  createQmlApplicationEngine      (QObject* parent) final;
+    const QVariantList&     toolBarIndicators              (void) final;
 
 private slots:
     void _advancedChanged(bool advanced);
@@ -84,6 +85,7 @@ private:
     QQmlApplicationEngine *_qmlEngine = nullptr;
     class CustomOverrideInterceptor *_selector = nullptr;
     QVariantList    _customSettingsList; // Not to be mixed up with QGCCorePlugin implementation
+    QVariantList    _toolBarIndicatorList; // Custom toolbar indicators
 };
 
 /*===========================================================================*/

@@ -14,10 +14,19 @@ import QGroundControl
 import QGroundControl.Controls
 import QGroundControl.FlightDisplay
 
-// Custom版本：完全隐藏右下角的所有状态显示器
-// 包括TelemetryValuesBar和FlyViewInstrumentPanel
+// Custom版本：隐藏遥测值显示
 RowLayout {
-    // 空布局 - 不显示任何状态信息
-    // 这样可以完全清理右下角的显示区域
-    visible: false
+    TelemetryValuesBar {
+        Layout.alignment:       Qt.AlignBottom
+        extraWidth:             instrumentPanel.extraValuesWidth
+        settingsGroup:          factValueGrid.telemetryBarSettingsGroup
+        specificVehicleForCard: null // Tracks active vehicle
+        visible:                false  // 隐藏遥测值方块
+    }
+
+    FlyViewInstrumentPanel {
+        id:                 instrumentPanel
+        Layout.alignment:   Qt.AlignBottom
+        visible:            QGroundControl.corePlugin.options.flyView.showInstrumentPanel && _showSingleVehicleUI
+    }
 } 

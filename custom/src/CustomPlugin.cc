@@ -26,6 +26,7 @@
 #include <QtQml/QQmlApplicationEngine>
 #include <QtQml/QQmlFile>
 #include <QtQml/qqml.h>
+#include <QtCore/QDebug>
 
 QGC_LOGGING_CATEGORY(CustomLog, "gcs.custom.customplugin")
 
@@ -396,6 +397,30 @@ QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent)
     _qmlEngine->addUrlInterceptor(_selector);
 
     return _qmlEngine;
+}
+
+// 添加自定义工具栏指示器
+const QVariantList& CustomPlugin::toolBarIndicators()
+{
+    if (_toolBarIndicatorList.isEmpty()) {
+        // 首先获取基类的指示器列表
+        _toolBarIndicatorList = QGCCorePlugin::toolBarIndicators();
+        
+        // 添加自定义连接状态指示器
+        qDebug() << "CustomPlugin: Adding custom connection indicator";
+        _toolBarIndicatorList.append(QVariant::fromValue(QUrl("qrc:/Custom/qml/CustomConnectionIndicator.qml")));
+        
+        // 添加自定义任务状态指示器
+        qDebug() << "CustomPlugin: Adding custom mission status indicator";
+        _toolBarIndicatorList.append(QVariant::fromValue(QUrl("qrc:/Custom/qml/CustomMissionStatusIndicator.qml")));
+        
+        // 添加自定义定位状态指示器
+        qDebug() << "CustomPlugin: Adding custom location indicator";
+        _toolBarIndicatorList.append(QVariant::fromValue(QUrl("qrc:/Custom/qml/CustomLocationIndicator.qml")));
+        
+        qDebug() << "CustomPlugin: Total indicators:" << _toolBarIndicatorList.size();
+    }
+    return _toolBarIndicatorList;
 }
 
 /*===========================================================================*/
