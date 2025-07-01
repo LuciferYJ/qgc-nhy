@@ -79,7 +79,7 @@ Rectangle {
                             text: locationStatus
                             font.pointSize: ScreenTools.smallFontPointSize
                             font.bold: true
-                            color: "white"
+                            color: qgcPal.text
                         }
                     }
                 }
@@ -151,7 +151,7 @@ Rectangle {
                         text: visualStatus
                         font.pointSize: ScreenTools.defaultFontPointSize
                         font.bold: true
-                        color: "white"
+                        color: qgcPal.text
                         anchors.horizontalCenter: parent.horizontalCenter
                     }
                 }
@@ -181,7 +181,7 @@ Rectangle {
                         text: accuracy > 0 ? accuracy.toFixed(2) + " m" : "---"
                         font.pointSize: ScreenTools.defaultFontPointSize
                         font.bold: true
-                        color: "white"
+                        color: qgcPal.text
                         anchors.horizontalCenter: parent.horizontalCenter
                     }
                 }
