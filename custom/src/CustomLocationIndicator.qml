@@ -131,7 +131,7 @@ Item {
                 longitude = 0.0
             }
             
-            console.log("Location status updated:", locationStatus, "Visual:", visualStatus, "Satellites:", satelliteCount, "Accuracy:", accuracy.toFixed(2))
+            // console.log("Location status updated:", locationStatus, "Visual:", visualStatus, "Satellites:", satelliteCount, "Accuracy:", accuracy.toFixed(2))
         }
     }
 } 

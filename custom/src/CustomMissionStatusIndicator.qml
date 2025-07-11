@@ -110,7 +110,7 @@ Item {
                 capturedImages += Math.floor(Math.random() * 3 + 1)
             }
             
-            console.log("Mission status updated:", missionStatus, "Flight time:", flightTime, "Remaining:", remainingDistance, "Images:", capturedImages)
+            // console.log("Mission status updated:", missionStatus, "Flight time:", flightTime, "Remaining:", remainingDistance, "Images:", capturedImages)
         }
     }
 } 

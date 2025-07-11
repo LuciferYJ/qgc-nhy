@@ -19,6 +19,7 @@
 #include "UdpCommandLink.h"
 #include "CustomCommandSender.h"
 #include "CustomStatusReceiver.h"
+#include "Database/MissionDatabase.h"
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
 #include <QtCore/QApplicationStatic>
@@ -391,6 +392,26 @@ QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent)
             Q_UNUSED(engine)
             Q_UNUSED(scriptEngine)
             return CustomStatusReceiver::create(engine, scriptEngine);
+        });
+
+    // Register SQLite Mission Database
+    qmlRegisterSingletonType<MissionDatabase>("Custom.Database", 1, 0, "MissionDatabase", 
+        [](QQmlEngine* engine, QJSEngine* scriptEngine) -> QObject* {
+            Q_UNUSED(engine)
+            Q_UNUSED(scriptEngine)
+            static MissionDatabase* instance = nullptr;
+            if (!instance) {
+                instance = new MissionDatabase();
+                qDebug() << "MissionDatabase: 创建单例实例";
+                // 初始化数据库，不自动创建测试数据
+                if (instance->initDatabase()) {
+                    qDebug() << "MissionDatabase: 数据库初始化成功";
+                    // 不再自动创建测试数据，让用户手动决定
+                } else {
+                    qWarning() << "MissionDatabase: 数据库初始化失败";
+                }
+            }
+            return instance;
         });
 
     _selector = new CustomOverrideInterceptor();

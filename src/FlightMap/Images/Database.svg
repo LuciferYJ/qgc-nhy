@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" viewBox="-89 46 72 72">
+    <!-- 顶部椭圆 -->
+    <ellipse cx="-53" cy="62" rx="20" ry="6" fill="none" stroke="#FFF" stroke-miterlimit="10" stroke-width="3"/>
+  
+    <!-- 中间层 -->
+    <path d="M-73 62v12c0 3.3 9 6 20 6s20-2.7 20-6V62" fill="none" stroke="#FFF" stroke-miterlimit="10" stroke-width="3"/>
+    <ellipse cx="-53" cy="74" rx="20" ry="6" fill="none" stroke="#FFF" stroke-miterlimit="10" stroke-width="3"/>
+    
+    <!-- 底部层 -->
+    <path d="M-73 74v12c0 3.3 9 6 20 6s20-2.7 20-6V74" fill="none" stroke="#FFF" stroke-miterlimit="10" stroke-width="3"/>
+    <ellipse cx="-53" cy="86" rx="20" ry="6" fill="none" stroke="#FFF" stroke-miterlimit="10" stroke-width="3"/>
+
+    <!-- 底部最终层 -->
+    <path d="M-73 86v12c0 3.3 9 6 20 6s20-2.7 20-6V86" fill="none" stroke="#FFF" stroke-miterlimit="10" stroke-width="3"/>
+    <ellipse cx="-53" cy="98" rx="20" ry="6" fill="none" stroke="#FFF" stroke-miterlimit="10" stroke-width="3"/>
+</svg>
+

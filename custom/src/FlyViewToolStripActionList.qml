@@ -45,6 +45,6 @@ ToolStripActionList {
             onTriggered: {
                 _guidedController._customController._handleMyCustomHome()
             }
-        }
+}
     ]
 }

@@ -82,6 +82,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/UdpLink/CustomCommandSender.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/UdpLink/CustomStatusReceiver.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/UdpLink/CustomStatusReceiver.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Database/MissionDatabase.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Database/MissionDatabase.h
     CACHE INTERNAL "" FORCE
 )
 

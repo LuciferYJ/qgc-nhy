@@ -20,6 +20,7 @@ import QGroundControl.ScreenTools
 
 import Custom.Widgets
 
+
 Item {
     property var parentToolInsets                       // These insets tell you what screen real estate is available for positioning the controls in your overlay
     property var totalToolInsets:   _totalToolInsets    // The insets updated for the custom overlay additions
@@ -170,6 +171,8 @@ Item {
         anchors.rightMargin:    _toolsMargin
         source:                 "qrc:/Custom/qml/QGroundControl/FlightDisplay/CustomStatusPanel.qml"
     }
+
+
 
     Rectangle {
         id:                     compassBackground

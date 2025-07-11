@@ -1,0 +1,108 @@
+#pragma once
+
+#include <QtCore/QObject>
+#include <QtSql/QSqlDatabase>
+#include <QtSql/QSqlQuery>
+#include <QtSql/QSqlError>
+#include <QtCore/QDateTime>
+#include <QtCore/QJsonObject>
+#include <QtCore/QJsonDocument>
+#include <QtCore/QJsonArray>
+#include <QtCore/QStandardPaths>
+#include <QtCore/QDir>
+#include <QtCore/QUuid>
+
+class MissionDatabase : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit MissionDatabase(QObject *parent = nullptr);
+    ~MissionDatabase();
+
+    // 数据库初始化
+    Q_INVOKABLE bool initDatabase();
+    Q_INVOKABLE bool isConnected() const { return _isConnected; }
+
+    // 航线表操作 (routes)
+    struct RouteInfo {
+        QString uuid;
+        qint64 modifyTime;      // 修改时间戳
+        QString name;           // 航线名称
+        int waypointCount;      // 航点数
+        double routeLength;     // 航线长度(米)
+        int estimatedDuration;  // 预计时长(秒)
+    };
+
+    Q_INVOKABLE bool addRoute(const QString &uuid, const QString &name, int waypointCount, 
+                             double routeLength, int estimatedDuration);
+    Q_INVOKABLE bool updateRoute(const QString &uuid, const QString &name, int waypointCount, 
+                               double routeLength, int estimatedDuration);
+    Q_INVOKABLE bool deleteRoute(const QString &uuid);
+    Q_INVOKABLE QJsonObject getRoute(const QString &uuid);
+    Q_INVOKABLE QJsonArray getAllRoutes();
+
+    // 任务表操作 (missions)
+    struct MissionInfo {
+        QString uuid;
+        QString routeUuid;      // 关联的航线UUID
+        qint64 startTime;       // 开始时间戳
+        qint64 endTime;         // 完成时间戳
+        QString logFileName;    // 日志文件名
+        QString routeBackup;    // 航线备份(JSON格式)
+        QString resultUuid;     // 关联的成果UUID
+    };
+
+    Q_INVOKABLE bool addMission(const QString &uuid, const QString &routeUuid, 
+                               const QString &logFileName, const QString &routeBackup);
+    Q_INVOKABLE bool addMissionWithTime(const QString &uuid, const QString &routeUuid, 
+                                       qint64 startTime, const QString &logFileName, const QString &routeBackup);
+    Q_INVOKABLE bool updateMissionResult(const QString &uuid, const QString &resultUuid);
+    Q_INVOKABLE bool updateMissionEndTime(const QString &uuid, qint64 endTime);
+    Q_INVOKABLE bool deleteMission(const QString &uuid);
+    Q_INVOKABLE QJsonObject getMission(const QString &uuid);
+    Q_INVOKABLE QJsonArray getAllMissions();
+    Q_INVOKABLE QJsonArray getMissionsByRoute(const QString &routeUuid);
+
+    // 成果表操作 (results)
+    struct ResultInfo {
+        QString uuid;
+        QString missionUuid;    // 关联的任务UUID
+        QString resultData;     // 成果数据(JSON格式，包含图片路径和识别信息)
+    };
+
+    Q_INVOKABLE bool addResult(const QString &uuid, const QString &missionUuid, 
+                              const QString &resultData);
+    Q_INVOKABLE bool updateResult(const QString &uuid, const QString &resultData);
+    Q_INVOKABLE bool deleteResult(const QString &uuid);
+    Q_INVOKABLE QJsonObject getResult(const QString &uuid);
+    Q_INVOKABLE QJsonArray getAllResults();
+    Q_INVOKABLE QJsonArray getResultsByMission(const QString &missionUuid);
+
+    // 工具函数
+    Q_INVOKABLE QString generateUuid() { return QUuid::createUuid().toString(QUuid::WithoutBraces); }
+    Q_INVOKABLE qint64 getCurrentTimestamp() { return QDateTime::currentSecsSinceEpoch(); }
+    Q_INVOKABLE bool clearAllData();  // 清空所有数据表
+    Q_INVOKABLE void checkTableStructure();  // 检查表结构
+    Q_INVOKABLE bool migrateDatabaseSchema();  // 迁移数据库架构
+
+signals:
+    void databaseError(const QString &error);
+    void databaseConnected();
+    void databaseDisconnected();
+
+private:
+    bool _connectDatabase();
+    void _disconnectDatabase();
+    bool _createTables();
+    QString _getDatabasePath();
+    
+    QSqlDatabase _database;
+    bool _isConnected;
+    QString _connectionName;
+    
+    // 表创建SQL
+    static const QString _createRoutesTableSQL;
+    static const QString _createMissionsTableSQL;
+    static const QString _createResultsTableSQL;
+}; 

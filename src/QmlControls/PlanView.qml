@@ -26,6 +26,7 @@ import QGroundControl.Controllers
 import QGroundControl.ShapeFileHelper
 import QGroundControl.FlightDisplay
 import QGroundControl.UTMSP
+import Custom.Database 1.0
 
 
 Item {
@@ -99,6 +100,8 @@ Item {
             }
         }
     }
+
+
 
     Connections {
         target: _appSettings ? _appSettings.defaultMissionItemAltitude : null
@@ -565,6 +568,7 @@ Item {
             readonly property int patternButtonIndex:   4
             readonly property int landButtonIndex:      5
             readonly property int centerButtonIndex:    6
+            readonly property int databaseButtonIndex:  7
 
             property bool _isRallyLayer:    _editingLayer == _layerRallyPoints
             property bool _isMissionLayer:  _editingLayer == _layerMission
@@ -650,6 +654,13 @@ Item {
                         enabled:            true
                         visible:            true
                         dropPanelComponent: centerMapDropPanel
+                    },
+                    ToolStripAction {
+                        text:               qsTr("数据库")
+                        iconSource:         "/qmlimages/Database.svg"
+                        enabled:            true
+                        visible:            true
+                        dropPanelComponent: databaseDropPanel
                     }
                 ]
             }
@@ -1163,6 +1174,127 @@ Item {
         }
     }
 
+    //-----------------------------------------------------------
+    // Database Drop Panel Component
+    Component {
+        id: databaseDropPanel
+
+        ColumnLayout {
+            id:         databaseColumnHolder
+            spacing:    _margin
+            width:      ScreenTools.defaultFontPixelWidth * 25
+
+            QGCLabel {
+                id:                 databaseHeaderLabel
+                Layout.fillWidth:   true
+                text:               qsTr("数据库管理")
+                font.pointSize:     ScreenTools.mediumFontPointSize
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            Rectangle {
+                Layout.fillWidth:   true
+                height:             1
+                color:              qgcPal.text
+                opacity:            0.3
+            }
+
+            SectionHeader {
+                id:                 missionDataSection
+                Layout.fillWidth:   true
+                text:               qsTr("航线数据")
+                showSpacer:         false
+            }
+
+            GridLayout {
+                columns:            2
+                columnSpacing:      _margin
+                rowSpacing:         _margin / 2
+                Layout.fillWidth:   true
+                visible:            missionDataSection.checked
+
+                QGCButton {
+                    text:               qsTr("更新当前航线")
+                    Layout.fillWidth:   true
+                    Layout.columnSpan:  2
+                    onClicked: {
+                        console.log("按钮被点击")
+                    }
+                }
+
+                QGCButton {
+                    text:               qsTr("保存为新航线")
+                    Layout.fillWidth:   true
+                    Layout.columnSpan:  2
+                    onClicked: {
+                        console.log("按钮被点击")
+                    }
+                }
+
+                QGCButton {
+                    text:               qsTr("航迹列表")
+                    Layout.fillWidth:   true
+                    Layout.columnSpan:  2
+                    onClicked: {
+                        console.log("航迹列表按钮被点击")
+                        dropPanel.hide()
+                        showRouteListDialog()
+                    }
+                }
+            }
+
+            SectionHeader {
+                id:                 statisticsSection
+                Layout.fillWidth:   true
+                text:               qsTr("任务数据")
+                showSpacer:         false
+            }
+
+            GridLayout {
+                columns:            1
+                columnSpacing:      _margin
+                rowSpacing:         _margin / 2
+                Layout.fillWidth:   true
+                visible:            statisticsSection.checked
+
+                QGCButton {
+                    text:               qsTr("任务列表")
+                    Layout.fillWidth:   true
+                    onClicked: {
+                        console.log("任务列表按钮被点击")
+                        dropPanel.hide()
+                        showMissionListDialog()
+                    }
+                }
+            }
+
+            SectionHeader {
+                id:                 settingsSection
+                Layout.fillWidth:   true
+                text:               qsTr("数据库设置")
+                showSpacer:         false
+            }
+
+            GridLayout {
+                columns:            1
+                columnSpacing:      _margin
+                rowSpacing:         _margin / 2
+                Layout.fillWidth:   true
+                visible:            settingsSection.checked
+
+                QGCButton {
+                    text:               qsTr("清空数据库")
+                    Layout.fillWidth:   true
+                    onClicked: {
+                        console.log("清空数据库按钮被点击")
+                        dropPanel.hide()
+                        showClearDatabaseConfirmDialog()
+                    }
+                }
+            }
+        }
+    }
+
     Connections {
         target: utmspEditor
         function onVehicleIDSent(id) {
@@ -1175,6 +1307,79 @@ Item {
             _planMasterController.removeAllFromVehicle();
             _missionController.setCurrentPlanViewSeqNum(0, true);
             if(_utmspEnabled){_resetRegisterFlightPlan = true}
+        }
+    }
+
+    // 航迹列表对话框组件定义
+    function showRouteListDialog() {
+        var component = Qt.createComponent("qrc:/Custom/RouteListDialog.qml")
+        if (component.status === Component.Ready) {
+            var dialog = component.createObject(mainWindow)
+            dialog.open()
+        } else {
+            console.log("RouteListDialog component error:", component.errorString())
+            mainWindow.showMessageDialog(qsTr("错误"), qsTr("无法加载航迹列表对话框: ") + component.errorString())
+        }
+    }
+
+    // 任务列表对话框组件定义
+    function showMissionListDialog() {
+        var component = Qt.createComponent("qrc:/Custom/MissionListDialog.qml")
+        if (component.status === Component.Ready) {
+            var dialog = component.createObject(mainWindow)
+            dialog.open()
+        } else {
+            console.log("MissionListDialog component error:", component.errorString())
+            mainWindow.showMessageDialog(qsTr("错误"), qsTr("无法加载任务列表对话框: ") + component.errorString())
+        }
+    }
+
+    // 清空数据库确认对话框
+    function showClearDatabaseConfirmDialog() {
+        mainWindow.showMessageDialog(
+            qsTr("清空数据库"),
+            qsTr("⚠️ 警告：此操作将永久删除所有数据库中的数据！\n\n包括：\n• 所有航线记录\n• 所有任务记录\n• 所有成果记录\n\n此操作不可恢复，确定要继续吗？"),
+            Dialog.Yes | Dialog.No,
+            function() {
+                // 用户确认清空数据库
+                clearDatabase()
+            }
+        )
+    }
+
+    // 执行清空数据库操作
+    function clearDatabase() {
+        console.log("开始清空数据库...")
+        
+        if (typeof MissionDatabase !== 'undefined' && MissionDatabase) {
+            try {
+                var success = MissionDatabase.clearAllData()
+                if (success) {
+                    console.log("数据库清空成功")
+                    mainWindow.showMessageDialog(
+                        qsTr("清空完成"),
+                        qsTr("✅ 数据库已成功清空！\n\n所有航线、任务和成果记录已被删除。")
+                    )
+                } else {
+                    console.log("数据库清空失败")
+                    mainWindow.showMessageDialog(
+                        qsTr("清空失败"),
+                        qsTr("❌ 数据库清空失败！\n\n请检查数据库连接状态或查看日志获取详细信息。")
+                    )
+                }
+            } catch (error) {
+                console.log("清空数据库时发生错误:", error)
+                mainWindow.showMessageDialog(
+                    qsTr("操作异常"),
+                    qsTr("❌ 清空数据库时发生异常：\n\n%1").arg(error.toString())
+                )
+            }
+        } else {
+            console.log("MissionDatabase 不可用")
+            mainWindow.showMessageDialog(
+                qsTr("数据库不可用"),
+                qsTr("❌ 无法访问数据库！\n\n请确保数据库模块已正确加载。")
+            )
         }
     }
 }
