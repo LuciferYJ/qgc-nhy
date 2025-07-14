@@ -32,12 +32,13 @@ public:
         int waypointCount;      // 航点数
         double routeLength;     // 航线长度(米)
         int estimatedDuration;  // 预计时长(秒)
+        QString waypoints;      // 航点数据(JSON格式)
     };
 
     Q_INVOKABLE bool addRoute(const QString &uuid, const QString &name, int waypointCount, 
-                             double routeLength, int estimatedDuration);
+                             double routeLength, int estimatedDuration, const QString &waypoints);
     Q_INVOKABLE bool updateRoute(const QString &uuid, const QString &name, int waypointCount, 
-                               double routeLength, int estimatedDuration);
+                               double routeLength, int estimatedDuration, const QString &waypoints);
     Q_INVOKABLE bool deleteRoute(const QString &uuid);
     Q_INVOKABLE QJsonObject getRoute(const QString &uuid);
     Q_INVOKABLE QJsonArray getAllRoutes();
@@ -51,12 +52,13 @@ public:
         QString logFileName;    // 日志文件名
         QString routeBackup;    // 航线备份(JSON格式)
         QString resultUuid;     // 关联的成果UUID
+        QString waypoints;      // 航点数据(JSON格式)
     };
 
     Q_INVOKABLE bool addMission(const QString &uuid, const QString &routeUuid, 
-                               const QString &logFileName, const QString &routeBackup);
+                               const QString &logFileName, const QString &routeBackup, const QString &waypoints);
     Q_INVOKABLE bool addMissionWithTime(const QString &uuid, const QString &routeUuid, 
-                                       qint64 startTime, const QString &logFileName, const QString &routeBackup);
+                                       qint64 startTime, const QString &logFileName, const QString &routeBackup, const QString &waypoints);
     Q_INVOKABLE bool updateMissionResult(const QString &uuid, const QString &resultUuid);
     Q_INVOKABLE bool updateMissionEndTime(const QString &uuid, qint64 endTime);
     Q_INVOKABLE bool deleteMission(const QString &uuid);
@@ -68,7 +70,7 @@ public:
     struct ResultInfo {
         QString uuid;
         QString missionUuid;    // 关联的任务UUID
-        QString resultData;     // 成果数据(JSON格式，包含图片路径和识别信息)
+        QString resultData;     // 成果数据(JSON格式，包含多个成果：图片路径和类别)
     };
 
     Q_INVOKABLE bool addResult(const QString &uuid, const QString &missionUuid, 
@@ -84,7 +86,17 @@ public:
     Q_INVOKABLE qint64 getCurrentTimestamp() { return QDateTime::currentSecsSinceEpoch(); }
     Q_INVOKABLE bool clearAllData();  // 清空所有数据表
     Q_INVOKABLE void checkTableStructure();  // 检查表结构
-    Q_INVOKABLE bool migrateDatabaseSchema();  // 迁移数据库架构
+    Q_INVOKABLE bool migrateDatabaseSchema();  // 检查数据库架构（为将来升级预留）
+    
+    // 航点数据处理工具函数
+    Q_INVOKABLE QString createWaypointsJson(const QJsonArray &waypoints);
+    Q_INVOKABLE QJsonArray parseWaypointsJson(const QString &waypointsJson);
+    Q_INVOKABLE QString createWaypointJson(double longitude, double latitude, double altitude, int type);
+    
+    // 成果数据处理工具函数
+    Q_INVOKABLE QString createResultsJson(const QJsonArray &results);
+    Q_INVOKABLE QJsonArray parseResultsJson(const QString &resultsJson);
+    Q_INVOKABLE QString createResultJson(const QString &imagePath, const QString &category);
 
 signals:
     void databaseError(const QString &error);
@@ -96,6 +108,7 @@ private:
     void _disconnectDatabase();
     bool _createTables();
     QString _getDatabasePath();
+
     
     QSqlDatabase _database;
     bool _isConnected;

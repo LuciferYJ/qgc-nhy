@@ -10,7 +10,8 @@ const QString MissionDatabase::_createRoutesTableSQL =
     "name TEXT NOT NULL, "
     "waypoint_count INTEGER NOT NULL, "
     "route_length REAL NOT NULL, "
-    "estimated_duration INTEGER NOT NULL"
+    "estimated_duration INTEGER NOT NULL, "
+    "waypoints TEXT NOT NULL"
     ")";
 
 const QString MissionDatabase::_createMissionsTableSQL = 
@@ -22,6 +23,7 @@ const QString MissionDatabase::_createMissionsTableSQL =
     "log_file_name TEXT, "
     "route_backup TEXT NOT NULL, "
     "result_uuid TEXT, "
+    "waypoints TEXT NOT NULL, "
     "FOREIGN KEY (route_uuid) REFERENCES routes(uuid), "
     "FOREIGN KEY (result_uuid) REFERENCES results(uuid)"
     ")";
@@ -78,6 +80,14 @@ bool MissionDatabase::_connectDatabase()
     if (!_database.open()) {
         qWarning() << "无法打开数据库:" << _database.lastError().text();
         return false;
+    }
+    
+    // 启用外键约束
+    QSqlQuery query(_database);
+    if (!query.exec("PRAGMA foreign_keys=ON")) {
+        qWarning() << "启用外键约束失败:" << query.lastError().text();
+    } else {
+        qDebug() << "外键约束已启用";
     }
     
     _isConnected = true;
@@ -148,19 +158,20 @@ QString MissionDatabase::_getDatabasePath()
 // ==================== 航线表操作 ====================
 
 bool MissionDatabase::addRoute(const QString &uuid, const QString &name, int waypointCount, 
-                              double routeLength, int estimatedDuration)
+                              double routeLength, int estimatedDuration, const QString &waypoints)
 {
     if (!_isConnected) return false;
     
     QSqlQuery query(_database);
-    query.prepare("INSERT INTO routes (uuid, modify_time, name, waypoint_count, route_length, estimated_duration) "
-                  "VALUES (?, ?, ?, ?, ?, ?)");
+    query.prepare("INSERT INTO routes (uuid, modify_time, name, waypoint_count, route_length, estimated_duration, waypoints) "
+                  "VALUES (?, ?, ?, ?, ?, ?, ?)");
     query.addBindValue(uuid);
     query.addBindValue(getCurrentTimestamp());
     query.addBindValue(name);
     query.addBindValue(waypointCount);
     query.addBindValue(routeLength);
     query.addBindValue(estimatedDuration);
+    query.addBindValue(waypoints);
     
     if (!query.exec()) {
         qWarning() << "添加航线失败:" << query.lastError().text();
@@ -172,18 +183,19 @@ bool MissionDatabase::addRoute(const QString &uuid, const QString &name, int way
 }
 
 bool MissionDatabase::updateRoute(const QString &uuid, const QString &name, int waypointCount, 
-                                 double routeLength, int estimatedDuration)
+                                 double routeLength, int estimatedDuration, const QString &waypoints)
 {
     if (!_isConnected) return false;
     
     QSqlQuery query(_database);
-    query.prepare("UPDATE routes SET modify_time=?, name=?, waypoint_count=?, route_length=?, estimated_duration=? "
+    query.prepare("UPDATE routes SET modify_time=?, name=?, waypoint_count=?, route_length=?, estimated_duration=?, waypoints=? "
                   "WHERE uuid=?");
     query.addBindValue(getCurrentTimestamp());
     query.addBindValue(name);
     query.addBindValue(waypointCount);
     query.addBindValue(routeLength);
     query.addBindValue(estimatedDuration);
+    query.addBindValue(waypoints);
     query.addBindValue(uuid);
     
     if (!query.exec()) {
@@ -232,6 +244,7 @@ QJsonObject MissionDatabase::getRoute(const QString &uuid)
     result["waypoint_count"] = query.value("waypoint_count").toInt();
     result["route_length"] = query.value("route_length").toDouble();
     result["estimated_duration"] = query.value("estimated_duration").toInt();
+    result["waypoints"] = query.value("waypoints").toString();
     
     return result;
 }
@@ -255,6 +268,7 @@ QJsonArray MissionDatabase::getAllRoutes()
         route["waypoint_count"] = query.value("waypoint_count").toInt();
         route["route_length"] = query.value("route_length").toDouble();
         route["estimated_duration"] = query.value("estimated_duration").toInt();
+        route["waypoints"] = query.value("waypoints").toString();
         result.append(route);
     }
     
@@ -264,24 +278,25 @@ QJsonArray MissionDatabase::getAllRoutes()
 // ==================== 任务表操作 ====================
 
 bool MissionDatabase::addMission(const QString &uuid, const QString &routeUuid, 
-                                 const QString &logFileName, const QString &routeBackup)
+                                 const QString &logFileName, const QString &routeBackup, const QString &waypoints)
 {
-    return addMissionWithTime(uuid, routeUuid, getCurrentTimestamp(), logFileName, routeBackup);
+    return addMissionWithTime(uuid, routeUuid, getCurrentTimestamp(), logFileName, routeBackup, waypoints);
 }
 
 bool MissionDatabase::addMissionWithTime(const QString &uuid, const QString &routeUuid, 
-                                         qint64 startTime, const QString &logFileName, const QString &routeBackup)
+                                         qint64 startTime, const QString &logFileName, const QString &routeBackup, const QString &waypoints)
 {
     if (!_isConnected) return false;
     
     QSqlQuery query(_database);
-    query.prepare("INSERT INTO missions (uuid, route_uuid, start_time, log_file_name, route_backup) "
-                  "VALUES (?, ?, ?, ?, ?)");
+    query.prepare("INSERT INTO missions (uuid, route_uuid, start_time, log_file_name, route_backup, waypoints) "
+                  "VALUES (?, ?, ?, ?, ?, ?)");
     query.addBindValue(uuid);
     query.addBindValue(routeUuid);
     query.addBindValue(startTime);
     query.addBindValue(logFileName);
     query.addBindValue(routeBackup);
+    query.addBindValue(waypoints);
     
     if (!query.exec()) {
         qWarning() << "添加任务失败:" << query.lastError().text();
@@ -366,6 +381,7 @@ QJsonObject MissionDatabase::getMission(const QString &uuid)
     result["log_file_name"] = query.value("log_file_name").toString();
     result["route_backup"] = query.value("route_backup").toString();
     result["result_uuid"] = query.value("result_uuid").toString();
+    result["waypoints"] = query.value("waypoints").toString();
     
     return result;
 }
@@ -390,6 +406,7 @@ QJsonArray MissionDatabase::getAllMissions()
         mission["log_file_name"] = query.value("log_file_name").toString();
         mission["route_backup"] = query.value("route_backup").toString();
         mission["result_uuid"] = query.value("result_uuid").toString();
+        mission["waypoints"] = query.value("waypoints").toString();
         result.append(mission);
     }
     
@@ -419,6 +436,7 @@ QJsonArray MissionDatabase::getMissionsByRoute(const QString &routeUuid)
         mission["log_file_name"] = query.value("log_file_name").toString();
         mission["route_backup"] = query.value("route_backup").toString();
         mission["result_uuid"] = query.value("result_uuid").toString();
+        mission["waypoints"] = query.value("waypoints").toString();
         result.append(mission);
     }
     
@@ -655,33 +673,84 @@ bool MissionDatabase::migrateDatabaseSchema()
         return false;
     }
     
-    qDebug() << "开始迁移数据库架构...";
+    qDebug() << "开始检查数据库架构...";
     
-    QSqlQuery query(_database);
+    // 这里可以添加将来需要的数据库架构升级逻辑
+    // 目前数据库表结构已经完整，暂时不需要迁移操作
     
-    // 检查 missions 表是否有 result_uuid 字段
-    bool hasResultUuidField = false;
-    if (query.exec("PRAGMA table_info(missions)")) {
-        while (query.next()) {
-            if (query.value("name").toString() == "result_uuid") {
-                hasResultUuidField = true;
-                break;
-            }
-        }
-    }
-    
-    // 如果没有 result_uuid 字段，添加它
-    if (!hasResultUuidField) {
-        qDebug() << "添加 result_uuid 字段到 missions 表...";
-        if (!query.exec("ALTER TABLE missions ADD COLUMN result_uuid TEXT")) {
-            qWarning() << "添加 result_uuid 字段失败:" << query.lastError().text();
-            return false;
-        }
-        qDebug() << "成功添加 result_uuid 字段";
-    } else {
-        qDebug() << "missions 表已有 result_uuid 字段，跳过迁移";
-    }
-    
-    qDebug() << "数据库架构迁移完成";
+    qDebug() << "数据库架构检查完成";
     return true;
 }
+
+// ==================== 航点数据处理工具函数 ====================
+
+QString MissionDatabase::createWaypointsJson(const QJsonArray &waypoints)
+{
+    QJsonDocument doc(waypoints);
+    return doc.toJson(QJsonDocument::Compact);
+}
+
+QJsonArray MissionDatabase::parseWaypointsJson(const QString &waypointsJson)
+{
+    if (waypointsJson.isEmpty()) {
+        return QJsonArray();
+    }
+    
+    QJsonParseError error;
+    QJsonDocument doc = QJsonDocument::fromJson(waypointsJson.toUtf8(), &error);
+    
+    if (error.error != QJsonParseError::NoError) {
+        qWarning() << "解析航点JSON失败:" << error.errorString();
+        return QJsonArray();
+    }
+    
+    return doc.array();
+}
+
+QString MissionDatabase::createWaypointJson(double longitude, double latitude, double altitude, int type)
+{
+    QJsonObject waypoint;
+    waypoint["longitude"] = longitude;
+    waypoint["latitude"] = latitude;
+    waypoint["altitude"] = altitude;
+    waypoint["type"] = type;
+    
+    QJsonDocument doc(waypoint);
+    return doc.toJson(QJsonDocument::Compact);
+}
+
+// ==================== 成果数据处理工具函数 ====================
+
+QString MissionDatabase::createResultsJson(const QJsonArray &results)
+{
+    QJsonDocument doc(results);
+    return doc.toJson(QJsonDocument::Compact);
+}
+
+QJsonArray MissionDatabase::parseResultsJson(const QString &resultsJson)
+{
+    if (resultsJson.isEmpty()) {
+        return QJsonArray();
+    }
+    
+    QJsonParseError error;
+    QJsonDocument doc = QJsonDocument::fromJson(resultsJson.toUtf8(), &error);
+    
+    if (error.error != QJsonParseError::NoError) {
+        qWarning() << "解析成果JSON失败:" << error.errorString();
+        return QJsonArray();
+    }
+    
+    return doc.array();
+}
+
+QString MissionDatabase::createResultJson(const QString &imagePath, const QString &category)
+{
+    QJsonObject result;
+    result["image_path"] = imagePath;
+    result["category"] = category;
+    
+    QJsonDocument doc(result);
+    return doc.toJson(QJsonDocument::Compact);
+}
+
