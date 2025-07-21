@@ -21,7 +21,6 @@ const QString MissionDatabase::_createMissionsTableSQL =
     "start_time INTEGER NOT NULL, "
     "end_time INTEGER DEFAULT 0, "
     "log_file_name TEXT, "
-    "route_backup TEXT NOT NULL, "
     "result_uuid TEXT, "
     "waypoints TEXT NOT NULL, "
     "FOREIGN KEY (route_uuid) REFERENCES routes(uuid), "
@@ -58,12 +57,6 @@ bool MissionDatabase::initDatabase()
     
     if (!_createTables()) {
         emit databaseError("无法创建数据表");
-        return false;
-    }
-    
-    // 执行数据库架构迁移
-    if (!migrateDatabaseSchema()) {
-        emit databaseError("数据库架构迁移失败");
         return false;
     }
     
@@ -278,24 +271,23 @@ QJsonArray MissionDatabase::getAllRoutes()
 // ==================== 任务表操作 ====================
 
 bool MissionDatabase::addMission(const QString &uuid, const QString &routeUuid, 
-                                 const QString &logFileName, const QString &routeBackup, const QString &waypoints)
+                                 const QString &logFileName, const QString &waypoints)
 {
-    return addMissionWithTime(uuid, routeUuid, getCurrentTimestamp(), logFileName, routeBackup, waypoints);
+    return addMissionWithTime(uuid, routeUuid, getCurrentTimestamp(), logFileName, waypoints);
 }
 
 bool MissionDatabase::addMissionWithTime(const QString &uuid, const QString &routeUuid, 
-                                         qint64 startTime, const QString &logFileName, const QString &routeBackup, const QString &waypoints)
+                                         qint64 startTime, const QString &logFileName, const QString &waypoints)
 {
     if (!_isConnected) return false;
     
     QSqlQuery query(_database);
-    query.prepare("INSERT INTO missions (uuid, route_uuid, start_time, log_file_name, route_backup, waypoints) "
-                  "VALUES (?, ?, ?, ?, ?, ?)");
+    query.prepare("INSERT INTO missions (uuid, route_uuid, start_time, log_file_name, waypoints) "
+                  "VALUES (?, ?, ?, ?, ?)");
     query.addBindValue(uuid);
     query.addBindValue(routeUuid);
     query.addBindValue(startTime);
     query.addBindValue(logFileName);
-    query.addBindValue(routeBackup);
     query.addBindValue(waypoints);
     
     if (!query.exec()) {
@@ -379,7 +371,6 @@ QJsonObject MissionDatabase::getMission(const QString &uuid)
     result["start_time"] = query.value("start_time").toLongLong();
     result["end_time"] = query.value("end_time").toLongLong();
     result["log_file_name"] = query.value("log_file_name").toString();
-    result["route_backup"] = query.value("route_backup").toString();
     result["result_uuid"] = query.value("result_uuid").toString();
     result["waypoints"] = query.value("waypoints").toString();
     
@@ -404,7 +395,6 @@ QJsonArray MissionDatabase::getAllMissions()
         mission["start_time"] = query.value("start_time").toLongLong();
         mission["end_time"] = query.value("end_time").toLongLong();
         mission["log_file_name"] = query.value("log_file_name").toString();
-        mission["route_backup"] = query.value("route_backup").toString();
         mission["result_uuid"] = query.value("result_uuid").toString();
         mission["waypoints"] = query.value("waypoints").toString();
         result.append(mission);
@@ -434,7 +424,6 @@ QJsonArray MissionDatabase::getMissionsByRoute(const QString &routeUuid)
         mission["start_time"] = query.value("start_time").toLongLong();
         mission["end_time"] = query.value("end_time").toLongLong();
         mission["log_file_name"] = query.value("log_file_name").toString();
-        mission["route_backup"] = query.value("route_backup").toString();
         mission["result_uuid"] = query.value("result_uuid").toString();
         mission["waypoints"] = query.value("waypoints").toString();
         result.append(mission);
@@ -568,7 +557,49 @@ QJsonArray MissionDatabase::getResultsByMission(const QString &missionUuid)
     return result;
 }
 
+QString MissionDatabase::getResultTypeName(int type)
+{
+    switch (type) {
+        case RESULT_TYPE_AIRCRAFT:
+            return "飞机";
+        case RESULT_TYPE_VEHICLE:
+            return "车";
+        case RESULT_TYPE_BUILDING:
+            return "建筑物";
+        default:
+            return "未知类型";
+    }
+}
 
+QJsonObject MissionDatabase::getAllResultTypeNames()
+{
+    QJsonObject typeNames;
+    typeNames["0"] = "飞机";
+    typeNames["1"] = "车";
+    typeNames["2"] = "建筑物";
+    return typeNames;
+}
+
+
+// ==================== 当前航线UUID管理 ====================
+
+void MissionDatabase::setCurrentRouteUuid(const QString &routeUuid)
+{
+    _currentRouteUuid = routeUuid;
+    qDebug() << "设置当前航线UUID:" << routeUuid;
+}
+
+QString MissionDatabase::getCurrentRouteUuid()
+{
+    qDebug() << "获取当前航线UUID:" << _currentRouteUuid;
+    return _currentRouteUuid;
+}
+
+void MissionDatabase::clearCurrentRouteUuid()
+{
+    qDebug() << "清除当前航线UUID";
+    _currentRouteUuid.clear();
+}
 
 
 // 清空所有数据表
@@ -665,92 +696,8 @@ void MissionDatabase::checkTableStructure()
      }
 }
 
-// 迁移数据库架构
-bool MissionDatabase::migrateDatabaseSchema()
-{
-    if (!_isConnected) {
-        qWarning() << "数据库未连接，无法迁移架构";
-        return false;
-    }
-    
-    qDebug() << "开始检查数据库架构...";
-    
-    // 这里可以添加将来需要的数据库架构升级逻辑
-    // 目前数据库表结构已经完整，暂时不需要迁移操作
-    
-    qDebug() << "数据库架构检查完成";
-    return true;
-}
 
-// ==================== 航点数据处理工具函数 ====================
 
-QString MissionDatabase::createWaypointsJson(const QJsonArray &waypoints)
-{
-    QJsonDocument doc(waypoints);
-    return doc.toJson(QJsonDocument::Compact);
-}
 
-QJsonArray MissionDatabase::parseWaypointsJson(const QString &waypointsJson)
-{
-    if (waypointsJson.isEmpty()) {
-        return QJsonArray();
-    }
-    
-    QJsonParseError error;
-    QJsonDocument doc = QJsonDocument::fromJson(waypointsJson.toUtf8(), &error);
-    
-    if (error.error != QJsonParseError::NoError) {
-        qWarning() << "解析航点JSON失败:" << error.errorString();
-        return QJsonArray();
-    }
-    
-    return doc.array();
-}
 
-QString MissionDatabase::createWaypointJson(double longitude, double latitude, double altitude, int type)
-{
-    QJsonObject waypoint;
-    waypoint["longitude"] = longitude;
-    waypoint["latitude"] = latitude;
-    waypoint["altitude"] = altitude;
-    waypoint["type"] = type;
-    
-    QJsonDocument doc(waypoint);
-    return doc.toJson(QJsonDocument::Compact);
-}
-
-// ==================== 成果数据处理工具函数 ====================
-
-QString MissionDatabase::createResultsJson(const QJsonArray &results)
-{
-    QJsonDocument doc(results);
-    return doc.toJson(QJsonDocument::Compact);
-}
-
-QJsonArray MissionDatabase::parseResultsJson(const QString &resultsJson)
-{
-    if (resultsJson.isEmpty()) {
-        return QJsonArray();
-    }
-    
-    QJsonParseError error;
-    QJsonDocument doc = QJsonDocument::fromJson(resultsJson.toUtf8(), &error);
-    
-    if (error.error != QJsonParseError::NoError) {
-        qWarning() << "解析成果JSON失败:" << error.errorString();
-        return QJsonArray();
-    }
-    
-    return doc.array();
-}
-
-QString MissionDatabase::createResultJson(const QString &imagePath, const QString &category)
-{
-    QJsonObject result;
-    result["image_path"] = imagePath;
-    result["category"] = category;
-    
-    QJsonDocument doc(result);
-    return doc.toJson(QJsonDocument::Compact);
-}
-
+ 

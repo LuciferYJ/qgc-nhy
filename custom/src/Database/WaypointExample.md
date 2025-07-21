@@ -23,7 +23,6 @@ CREATE TABLE missions (
     start_time INTEGER NOT NULL,     -- 任务开始时间戳
     end_time INTEGER DEFAULT 0,      -- 任务结束时间戳
     log_file_name TEXT,              -- 关联的日志文件名
-    route_backup TEXT NOT NULL,      -- 航线备份数据
     result_uuid TEXT,                -- 关联的成果UUID
     waypoints TEXT NOT NULL          -- 航点数据(JSON格式)
 )
@@ -125,7 +124,7 @@ var success = missionDatabase.addMission(
     missionUuid,         // uuid
     routeUuid,           // route_uuid
     "flight_log.txt",    // log_file_name
-    waypointsJson,       // route_backup
+                    // route_backup 字段已移除
     waypointsJson        // waypoints
 );
 ```

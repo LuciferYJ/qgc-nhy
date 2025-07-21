@@ -25,6 +25,7 @@ QGCPopupDialog {
     
     property var routeListModel: []
     property var qgcPal: QGroundControl.globalPalette
+    property var planViewRef: null  // PlanView的引用
     
     Component.onCompleted: {
         console.log("RouteListDialog 创建完成")
@@ -90,6 +91,45 @@ QGCPopupDialog {
         }
     }
     
+    // 从数据库加载航线数据到地图
+    function loadRouteToMap(routeUuid) {
+        console.log("开始加载航线到地图，UUID:", routeUuid)
+        
+        if (typeof MissionDatabase === 'undefined' || !MissionDatabase) {
+            console.log("MissionDatabase 不可用")
+            return
+        }
+        
+        try {
+            // 从数据库获取航线数据
+            var routeData = MissionDatabase.getRoute(routeUuid)
+            if (!routeData) {
+                console.log("未找到航线数据")
+                return
+            }
+            
+            console.log("获取到航线数据:", routeData.name)
+            console.log("航点数据:", routeData.waypoints)
+            
+            // 解析航点JSON数据
+            var waypoints = JSON.parse(routeData.waypoints)
+            if (!waypoints || waypoints.length === 0) {
+                console.log("航点数据为空")
+                return
+            }
+            
+            // 通过PlanView引用调用加载函数
+            if (planViewRef && typeof planViewRef.loadRouteFromDatabase === 'function') {
+                planViewRef.loadRouteFromDatabase(routeUuid, waypoints)
+            } else {
+                console.log("无法访问PlanView的加载函数")
+            }
+            
+        } catch (error) {
+            console.log("加载航线数据时发生错误:", error)
+        }
+    }
+    
     // 使用QGC标准的布局方式
     ColumnLayout {
         width:      Math.min(mainWindow.width * 0.9, ScreenTools.defaultFontPixelWidth * 100)
@@ -123,55 +163,90 @@ QGCPopupDialog {
             RowLayout {
                 anchors.fill:       parent
                 anchors.margins:    ScreenTools.defaultFontPixelWidth * 0.5
-                spacing:            ScreenTools.defaultFontPixelWidth
+                spacing:            0
                 
-                QGCLabel {
-                    Layout.preferredWidth:  40
-                    text:                   qsTr("序号")
-                    font.bold:              true
-                    horizontalAlignment:    Text.AlignCenter
+                Rectangle {
+                    Layout.preferredWidth:  parent.width * 0.08
+                    Layout.fillHeight:      true
+                    color:                  "transparent"
+                    
+                    QGCLabel {
+                        anchors.centerIn:       parent
+                        text:                   qsTr("序号")
+                        font.bold:              true
+                    }
                 }
                 
-                QGCLabel {
-                    Layout.preferredWidth:  120
-                    text:                   qsTr("航线名称")
-                    font.bold:              true
-                    horizontalAlignment:    Text.AlignLeft
+                Rectangle {
+                    Layout.preferredWidth:  parent.width * 0.16
+                    Layout.fillHeight:      true
+                    color:                  "transparent"
+                    
+                    QGCLabel {
+                        anchors.centerIn:       parent
+                        text:                   qsTr("航线名称")
+                        font.bold:              true
+                    }
                 }
                 
-                QGCLabel {
-                    Layout.preferredWidth:  140
-                    text:                   qsTr("创建时间")
-                    font.bold:              true
-                    horizontalAlignment:    Text.AlignCenter
+                Rectangle {
+                    Layout.preferredWidth:  parent.width * 0.16
+                    Layout.fillHeight:      true
+                    color:                  "transparent"
+                    
+                    QGCLabel {
+                        anchors.centerIn:       parent
+                        text:                   qsTr("创建时间")
+                        font.bold:              true
+                    }
                 }
                 
-                QGCLabel {
-                    Layout.preferredWidth:  60
-                    text:                   qsTr("航点数")
-                    font.bold:              true
-                    horizontalAlignment:    Text.AlignCenter
+                Rectangle {
+                    Layout.preferredWidth:  parent.width * 0.12
+                    Layout.fillHeight:      true
+                    color:                  "transparent"
+                    
+                    QGCLabel {
+                        anchors.centerIn:       parent
+                        text:                   qsTr("航点数")
+                        font.bold:              true
+                    }
                 }
                 
-                QGCLabel {
-                    Layout.preferredWidth:  80
-                    text:                   qsTr("航线长度")
-                    font.bold:              true
-                    horizontalAlignment:    Text.AlignCenter
+                Rectangle {
+                    Layout.preferredWidth:  parent.width * 0.16
+                    Layout.fillHeight:      true
+                    color:                  "transparent"
+                    
+                    QGCLabel {
+                        anchors.centerIn:       parent
+                        text:                   qsTr("航线长度")
+                        font.bold:              true
+                    }
                 }
                 
-                QGCLabel {
-                    Layout.preferredWidth:  80
-                    text:                   qsTr("预计时长")
-                    font.bold:              true
-                    horizontalAlignment:    Text.AlignCenter
+                Rectangle {
+                    Layout.preferredWidth:  parent.width * 0.16
+                    Layout.fillHeight:      true
+                    color:                  "transparent"
+                    
+                    QGCLabel {
+                        anchors.centerIn:       parent
+                        text:                   qsTr("预计时长")
+                        font.bold:              true
+                    }
                 }
                 
-                QGCLabel {
-                    Layout.preferredWidth:  120
-                    text:                   qsTr("操作")
-                    font.bold:              true
-                    horizontalAlignment:    Text.AlignCenter
+                Rectangle {
+                    Layout.preferredWidth:  parent.width * 0.16
+                    Layout.fillHeight:      true
+                    color:                  "transparent"
+                    
+                    QGCLabel {
+                        anchors.centerIn:       parent
+                        text:                   qsTr("操作")
+                        font.bold:              true
+                    }
                 }
             }
         }
@@ -190,108 +265,185 @@ QGCPopupDialog {
                 border.color:   qgcPal.text
                 border.width:   0.5
                 
-                RowLayout {
+                Row {
                     anchors.fill:       parent
                     anchors.margins:    ScreenTools.defaultFontPixelWidth * 0.5
-                    spacing:            ScreenTools.defaultFontPixelWidth
+                    spacing:            0
                     
                     // 序号
-                    QGCLabel {
-                        Layout.preferredWidth:  40
-                        text:                   modelData.index || (index + 1)
-                        horizontalAlignment:    Text.AlignCenter
+                    Rectangle {
+                        width:  parent.width * 0.08
+                        height: parent.height
+                        color:  "transparent"
+                        
+                        QGCLabel {
+                            anchors.centerIn:   parent
+                            text:               modelData.index || (index + 1)
+                        }
                     }
                     
                     // 航线名称
-                    QGCLabel {
-                        Layout.preferredWidth:  120
-                        text:                   modelData.name || qsTr("未命名航线")
-                        elide:                  Text.ElideRight
-                        horizontalAlignment:    Text.AlignLeft
+                    Rectangle {
+                        width:  parent.width * 0.16
+                        height: parent.height
+                        color:  "transparent"
                         
-                        // 鼠标悬停显示完整内容
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
+                        QGCLabel {
+                            anchors.centerIn:       parent
+                            anchors.leftMargin:     ScreenTools.defaultFontPixelWidth * 0.25
+                            anchors.rightMargin:    ScreenTools.defaultFontPixelWidth * 0.25
+                            width:                  parent.width - ScreenTools.defaultFontPixelWidth * 0.5
+                            text:                   modelData.name || qsTr("未命名航线")
+                            elide:                  Text.ElideRight
+                            horizontalAlignment:    Text.AlignHCenter
                             
-                            ToolTip {
-                                visible: parent.containsMouse && (modelData.name || qsTr("未命名航线")).length > 0
-                                text: modelData.name || qsTr("未命名航线")
-                                delay: 500
+                            // 鼠标悬停显示完整内容
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                
+                                ToolTip {
+                                    visible: parent.containsMouse && (modelData.name || qsTr("未命名航线")).length > 0
+                                    text: modelData.name || qsTr("未命名航线")
+                                    delay: 500
+                                }
                             }
                         }
                     }
                     
                     // 创建时间
-                    QGCLabel {
-                        Layout.preferredWidth:  140
-                        text:                   formatTimestamp(modelData.modify_time || 0)
-                        horizontalAlignment:    Text.AlignCenter
-                        elide:                  Text.ElideRight
+                    Rectangle {
+                        width:  parent.width * 0.16
+                        height: parent.height
+                        color:  "transparent"
                         
-                        // 鼠标悬停显示完整时间
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
+                        QGCLabel {
+                            anchors.centerIn:       parent
+                            anchors.leftMargin:     ScreenTools.defaultFontPixelWidth * 0.25
+                            anchors.rightMargin:    ScreenTools.defaultFontPixelWidth * 0.25
+                            width:                  parent.width - ScreenTools.defaultFontPixelWidth * 0.5
+                            text:                   formatTimestamp(modelData.modify_time || 0)
+                            elide:                  Text.ElideRight
+                            horizontalAlignment:    Text.AlignHCenter
                             
-                            ToolTip {
-                                visible: parent.containsMouse
-                                text: {
-                                    var date = new Date((modelData.modify_time || 0) * 1000)
-                                    return date.toLocaleString(Qt.locale(), "yyyy-MM-dd hh:mm:ss")
+                            // 鼠标悬停显示完整时间
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                
+                                ToolTip {
+                                    visible: parent.containsMouse
+                                    text: {
+                                        var date = new Date((modelData.modify_time || 0) * 1000)
+                                        return date.toLocaleString(Qt.locale(), "yyyy-MM-dd hh:mm:ss")
+                                    }
+                                    delay: 500
                                 }
-                                delay: 500
                             }
                         }
                     }
                     
                     // 航点数
-                    QGCLabel {
-                        Layout.preferredWidth:  60
-                        text:                   modelData.waypoint_count || "0"
-                        horizontalAlignment:    Text.AlignCenter
+                    Rectangle {
+                        width:  parent.width * 0.12
+                        height: parent.height
+                        color:  "transparent"
+                        
+                        QGCLabel {
+                            anchors.centerIn:   parent
+                            text:               modelData.waypoint_count || "0"
+                        }
                     }
                     
                     // 航线长度
-                    QGCLabel {
-                        Layout.preferredWidth:  80
-                        text:                   formatDistance(modelData.route_length || 0)
-                        horizontalAlignment:    Text.AlignCenter
+                    Rectangle {
+                        width:  parent.width * 0.16
+                        height: parent.height
+                        color:  "transparent"
+                        
+                        QGCLabel {
+                            anchors.centerIn:   parent
+                            text:               formatDistance(modelData.route_length || 0)
+                        }
                     }
                     
                     // 预计时长
-                    QGCLabel {
-                        Layout.preferredWidth:  80
-                        text:                   formatDuration(modelData.estimated_duration || 0)
-                        horizontalAlignment:    Text.AlignCenter
+                    Rectangle {
+                        width:  parent.width * 0.16
+                        height: parent.height
+                        color:  "transparent"
+                        
+                        QGCLabel {
+                            anchors.centerIn:   parent
+                            text:               formatDuration(modelData.estimated_duration || 0)
+                        }
                     }
                     
                     // 操作按钮
-                    RowLayout {
-                        Layout.preferredWidth:  120
-                        spacing:                ScreenTools.defaultFontPixelWidth * 0.5
+                    Rectangle {
+                        width:  parent.width * 0.16
+                        height: parent.height
+                        color:  "transparent"
                         
-                        QGCButton {
-                            Layout.fillWidth:   true
-                            text:               qsTr("编辑")
-                            onClicked: {
-                                console.log("编辑航线:", modelData.name)
-                                console.log("UUID:", modelData.uuid)
-                                // TODO: 实现编辑功能
+                        Row {
+                            anchors.centerIn:   parent
+                            spacing:            ScreenTools.defaultFontPixelWidth * 0.5
+                            
+                            Button {
+                                width:          ScreenTools.defaultFontPixelWidth * 6
+                                height:         ScreenTools.defaultFontPixelHeight * 1.5
+                                
+                                background: Rectangle {
+                                    color:          parent.pressed ? qgcPal.buttonHighlight : (parent.hovered ? qgcPal.buttonHover : qgcPal.button)
+                                    border.color:   qgcPal.buttonText
+                                    border.width:   1
+                                    radius:         ScreenTools.defaultFontPixelWidth * 0.25
+                                }
+                                
+                                contentItem: Text {
+                                    text:                   qsTr("编辑")
+                                    font.pointSize:         ScreenTools.smallFontPointSize
+                                    color:                  qgcPal.buttonText
+                                    horizontalAlignment:    Text.AlignHCenter
+                                    verticalAlignment:      Text.AlignVCenter
+                                }
+                                
+                                onClicked: {
+                                    console.log("编辑航线:", modelData.name)
+                                    console.log("UUID:", modelData.uuid)
+                                    loadRouteToMap(modelData.uuid)
+                                    close()
+                                }
                             }
-                        }
-                        
-                        QGCButton {
-                            Layout.fillWidth:   true
-                            text:               qsTr("删除")
-                            onClicked: {
-                                console.log("删除航线:", modelData.name)
-                                if (typeof MissionDatabase !== 'undefined' && MissionDatabase) {
-                                    if (MissionDatabase.deleteRoute(modelData.uuid)) {
-                                        console.log("删除成功")
-                                        loadRouteList()
-                                    } else {
-                                        console.log("删除失败")
+                            
+                            Button {
+                                width:          ScreenTools.defaultFontPixelWidth * 6
+                                height:         ScreenTools.defaultFontPixelHeight * 1.5
+                                
+                                background: Rectangle {
+                                    color:          parent.pressed ? qgcPal.buttonHighlight : (parent.hovered ? qgcPal.buttonHover : qgcPal.button)
+                                    border.color:   qgcPal.buttonText
+                                    border.width:   1
+                                    radius:         ScreenTools.defaultFontPixelWidth * 0.25
+                                }
+                                
+                                contentItem: Text {
+                                    text:                   qsTr("删除")
+                                    font.pointSize:         ScreenTools.smallFontPointSize
+                                    color:                  qgcPal.buttonText
+                                    horizontalAlignment:    Text.AlignHCenter
+                                    verticalAlignment:      Text.AlignVCenter
+                                }
+                                
+                                onClicked: {
+                                    console.log("删除航线:", modelData.name)
+                                    if (typeof MissionDatabase !== 'undefined' && MissionDatabase) {
+                                        if (MissionDatabase.deleteRoute(modelData.uuid)) {
+                                            console.log("删除成功")
+                                            loadRouteList()
+                                        } else {
+                                            console.log("删除失败")
+                                        }
                                     }
                                 }
                             }

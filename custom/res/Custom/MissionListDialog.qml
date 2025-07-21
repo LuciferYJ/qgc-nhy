@@ -107,6 +107,15 @@ QGCPopupDialog {
         return uuid ? uuid.substring(0, 8) + "..." : qsTr("无")
     }
     
+    function getResultTypeName(type) {
+        switch (type) {
+            case 0: return qsTr("飞机")
+            case 1: return qsTr("车")
+            case 2: return qsTr("建筑物")
+            default: return qsTr("未知类型")
+        }
+    }
+    
     // 使用QGC标准的布局方式
     ColumnLayout {
         width:      Math.min(mainWindow.width * 0.95, ScreenTools.defaultFontPixelWidth * 130)
@@ -331,21 +340,64 @@ QGCPopupDialog {
                         Layout.preferredWidth:  80
                         text:                   qsTr("成果展示")
                         onClicked: {
-                            console.log("成功展示任务:", modelData.uuid)
-                            console.log("任务详情:")
-                            console.log("- 任务UUID:", modelData.uuid)
-                            console.log("- 关联航线:", modelData.route_name)
-                            console.log("- 开始时间:", formatTimestamp(modelData.start_time))
-                            console.log("- 完成时间:", formatTimestamp(modelData.end_time))
-                            console.log("- 日志文件:", modelData.log_file_name)
-                            console.log("- 成果UUID:", modelData.result_uuid)
-                            mainWindow.showMessageDialog(qsTr("任务展示"), 
-                                qsTr("任务已成功展示！\n\n") +
-                                qsTr("关联航线: %1\n").arg(modelData.route_name || qsTr("未知航线")) +
-                                qsTr("开始时间: %1\n").arg(formatTimestamp(modelData.start_time)) +
-                                qsTr("完成时间: %1\n").arg(formatTimestamp(modelData.end_time)) +
-                                qsTr("日志文件: %1\n").arg(modelData.log_file_name || qsTr("未指定")) +
-                                qsTr("成果数据: %1").arg(modelData.result_uuid ? qsTr("有") : qsTr("无")))
+                            console.log("=== 成果展示开始 ===")
+                            console.log("任务UUID:", modelData.uuid)
+                            console.log("成果UUID:", modelData.result_uuid)
+                            
+                            if (!modelData.result_uuid) {
+                                console.log("该任务没有关联的成果数据")
+                                mainWindow.showMessageDialog(qsTr("成果展示"), 
+                                    qsTr("该任务没有关联的成果数据"))
+                                return
+                            }
+                            
+                            // 查询成果表数据
+                            try {
+                                var resultData = MissionDatabase.getResult(modelData.result_uuid)
+                                console.log("查询到的成果数据:", JSON.stringify(resultData, null, 2))
+                                
+                                if (!resultData || !resultData.result_data) {
+                                    console.log("成果数据为空或格式错误")
+                                    mainWindow.showMessageDialog(qsTr("成果展示"), 
+                                        qsTr("成果数据为空或格式错误"))
+                                    return
+                                }
+                                
+                                // 解析成果数据JSON
+                                var resultDataJson = JSON.parse(resultData.result_data)
+                                console.log("解析后的成果数据:", JSON.stringify(resultDataJson, null, 2))
+                                
+                                // 构建成果展示信息
+                                var resultInfo = qsTr("成果展示详情:\n\n")
+                                resultInfo += qsTr("任务UUID: %1\n").arg(modelData.uuid)
+                                resultInfo += qsTr("成果UUID: %1\n").arg(modelData.result_uuid)
+                                resultInfo += qsTr("成果数量: %1\n\n").arg(resultDataJson.length)
+                                
+                                // 遍历每个成果
+                                for (var i = 0; i < resultDataJson.length; i++) {
+                                    var result = resultDataJson[i]
+                                    var typeName = getResultTypeName(result.type)
+                                    resultInfo += qsTr("成果 %1:\n").arg(i + 1)
+                                    resultInfo += qsTr("  类型: %1 (%2)\n").arg(typeName).arg(result.type)
+                                    resultInfo += qsTr("  文件: %1\n").arg(result.file_path)
+                                    resultInfo += qsTr("  坐标: (%1, %2)\n\n").arg(result.longitude).arg(result.latitude)
+                                    
+                                    // 控制台输出详细信息
+                                    console.log("成果", i + 1, ":")
+                                    console.log("  类型:", typeName, "(", result.type, ")")
+                                    console.log("  文件路径:", result.file_path)
+                                    console.log("  经度:", result.longitude)
+                                    console.log("  纬度:", result.latitude)
+                                }
+                                
+                                console.log("=== 成果展示完成 ===")
+                                mainWindow.showMessageDialog(qsTr("成果展示"), resultInfo)
+                                
+                            } catch (error) {
+                                console.log("查询成果数据时发生错误:", error)
+                                mainWindow.showMessageDialog(qsTr("成果展示"), 
+                                    qsTr("查询成果数据时发生错误:\n%1").arg(error))
+                            }
                         }
                     }
                 }

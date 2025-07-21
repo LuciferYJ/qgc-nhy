@@ -19,7 +19,7 @@ import QGroundControl.Palette
 import QGroundControl.ScreenTools
 
 import Custom.Widgets
-
+import Custom.Database 1.0
 
 Item {
     property var parentToolInsets                       // These insets tell you what screen real estate is available for positioning the controls in your overlay
@@ -42,6 +42,167 @@ Item {
     property string _messageTitle:          ""
     property string _messageText:           ""
     property real   _toolsMargin:           ScreenTools.defaultFontPixelWidth * 0.75
+
+    // ==================== 任务记录相关属性 ====================
+    property string _currentMissionUuid:    ""              // 当前任务UUID
+    property string _currentRouteUuid:      ""              // 当前关联的航线UUID
+    property bool   _missionRecordingActive: false          // 任务记录是否激活
+    property bool   _vehicleArmed:          _activeVehicle ? _activeVehicle.armed : false
+    property bool   _vehicleFlying:         _activeVehicle ? _activeVehicle.flying : false
+    property string _vehicleFlightMode:     _activeVehicle ? _activeVehicle.flightMode : ""
+    property string _vehicleMissionMode:    _activeVehicle ? _activeVehicle.missionFlightMode : ""
+    property bool   _vehicleInMissionMode:  _vehicleFlightMode === _vehicleMissionMode
+    property bool   _missionActive:         _vehicleArmed && _vehicleFlying && _vehicleInMissionMode
+
+    // 添加调试信息，检查组件是否正确加载
+    Component.onCompleted: {
+        console.log("=== FlyViewCustomLayer: Component.onCompleted ===")
+        console.log("MissionDatabase可用:", typeof MissionDatabase !== 'undefined')
+    }
+
+    // ==================== 任务记录核心逻辑 ====================
+    
+    // 监听任务状态变化
+    Connections {
+        target: _activeVehicle
+        function onArmedChanged() { _checkMissionState() }
+        function onFlyingChanged() { _checkMissionState() }
+        function onFlightModeChanged() { _checkMissionState() }
+    }
+    
+    function _checkMissionState() {
+        var newMissionActive = _vehicleArmed && _vehicleFlying && _vehicleInMissionMode
+        console.log("检查任务状态:", newMissionActive ? "激活" : "停止")
+        if (newMissionActive && !_missionRecordingActive) {
+            // 任务开始
+            _startMissionRecording()
+        } else if (!newMissionActive && _missionRecordingActive) {
+            // 任务结束
+            _stopMissionRecording()
+        }
+    }
+
+
+    // 开始任务记录
+    function _startMissionRecording() {
+        console.log("=== 开始任务记录 ===")
+        
+        if (!_activeVehicle) {
+            console.log("无活动载具，无法开始任务记录")
+            return
+        }
+
+        try {
+            // 1. 生成任务UUID
+            _currentMissionUuid = MissionDatabase.generateUuid()
+            console.log("生成任务UUID:", _currentMissionUuid)
+
+            // 2. 从PlanView获取当前routeUuid
+            _currentRouteUuid = _getCurrentRouteUuid()
+            if (!_currentRouteUuid) {
+                console.log("无法获取当前路线UUID")
+                return
+            }
+            console.log("获取到路线UUID:", _currentRouteUuid)
+
+            // 3. 从数据库查询航线信息
+            var routeInfo = MissionDatabase.getRoute(_currentRouteUuid)
+            if (!routeInfo || !routeInfo.waypoints) {
+                console.log("无法从数据库获取航线信息")
+                return
+            }
+
+            // 4. 生成日志文件名（假数据）
+            var logFileName = _generateLogFileName()
+
+            // 5. 创建任务记录
+            var success = MissionDatabase.addMission(
+                _currentMissionUuid,
+                _currentRouteUuid,
+                logFileName,
+                routeInfo.waypoints   // waypoints: 航点数据
+            )
+
+            if (success) {
+                _missionRecordingActive = true
+                console.log("任务记录创建成功")
+                console.log("- 任务UUID:", _currentMissionUuid)
+                console.log("- 航线UUID:", _currentRouteUuid)
+                console.log("- 日志文件:", logFileName)
+            } else {
+                console.log("任务记录创建失败")
+                _currentMissionUuid = ""
+                _currentRouteUuid = ""
+            }
+
+        } catch (error) {
+            console.log("开始任务记录时发生错误:", error)
+            _currentMissionUuid = ""
+            _currentRouteUuid = ""
+        }
+    }
+
+    // 停止任务记录
+    function _stopMissionRecording() {
+        console.log("=== 停止任务记录 ===")
+        
+        if (!_missionRecordingActive || !_currentMissionUuid) {
+            console.log("任务记录未激活或UUID为空")
+            return
+        }
+
+        try {
+            // 更新任务完成时间
+            var success = MissionDatabase.updateMissionEndTime(
+                _currentMissionUuid,
+                MissionDatabase.getCurrentTimestamp()
+            )
+
+            if (success) {
+                console.log("任务记录更新成功")
+                console.log("- 任务UUID:", _currentMissionUuid)
+                console.log("- 完成时间:", new Date().toLocaleString())
+            } else {
+                console.log("任务记录更新失败")
+            }
+
+        } catch (error) {
+            console.log("停止任务记录时发生错误:", error)
+        } finally {
+            // 清理状态
+            _missionRecordingActive = false
+            _currentMissionUuid = ""
+            _currentRouteUuid = ""
+        }
+    }
+
+    // 从PlanView获取当前routeUuid
+    function _getCurrentRouteUuid() {
+        console.log("=== _getCurrentRouteUuid 被调用 ===")
+        
+        // 直接从MissionDatabase获取当前航线UUID
+        var routeUuid = MissionDatabase.getCurrentRouteUuid()
+        
+        if (routeUuid && routeUuid !== "") {
+            console.log("从MissionDatabase获取到UUID:", routeUuid)
+            // 更新本地缓存
+            _currentRouteUuid = routeUuid
+            return routeUuid
+        }
+        
+        console.log("MissionDatabase中没有当前航线UUID")
+        return null
+    }
+
+
+    // 生成日志文件名（假数据）
+    function _generateLogFileName() {
+        var now = new Date()
+        var timestamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_')
+        return "flight_log_" + timestamp + ".ulg"
+    }
+
+    // ==================== 原有代码继续 ====================
 
     function secondsToHHMMSS(timeS) {
         var sec_num = parseInt(timeS, 10);
@@ -268,6 +429,141 @@ Item {
             vehicle:            _activeVehicle
             showHeading:        false
             anchors.centerIn:   parent
+        }
+    }
+
+    // ==================== 任务记录状态显示 ====================
+    Rectangle {
+        id:                     missionRecordingStatus
+        anchors.top:            parent.top
+        anchors.topMargin:      _toolsMargin + parentToolInsets.topEdgeRightInset
+        anchors.right:          parent.right
+        anchors.rightMargin:    _toolsMargin
+        width:                  ScreenTools.defaultFontPixelWidth * 25
+        height:                 ScreenTools.defaultFontPixelHeight * 8
+        radius:                 ScreenTools.defaultFontPixelWidth * 0.5
+        color:                  qgcPal.windowShade
+        border.color:           _missionRecordingActive ? "green" : "gray"
+        border.width:           2
+        visible:                _activeVehicle !== null
+
+        Column {
+            anchors.fill:       parent
+            anchors.margins:    ScreenTools.defaultFontPixelWidth * 0.5
+            spacing:            ScreenTools.defaultFontPixelHeight * 0.25
+
+            // 标题
+            QGCLabel {
+                text:               "任务记录状态"
+                font.bold:          true
+                font.pointSize:     ScreenTools.smallFontPointSize
+                color:              qgcPal.text
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+
+            // 分隔线
+            Rectangle {
+                width:              parent.width
+                height:             1
+                color:              qgcPal.text
+                opacity:            0.3
+            }
+
+            // 记录状态
+            Row {
+                spacing:            ScreenTools.defaultFontPixelWidth * 0.5
+                QGCLabel {
+                    text:           "记录状态:"
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    color:          qgcPal.text
+                }
+                QGCLabel {
+                    text:           _missionRecordingActive ? "激活" : "停止"
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    color:          _missionRecordingActive ? "green" : "red"
+                    font.bold:      true
+                }
+            }
+
+            // 任务状态
+            Row {
+                spacing:            ScreenTools.defaultFontPixelWidth * 0.5
+                QGCLabel {
+                    text:           "任务状态:"
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    color:          qgcPal.text
+                }
+                QGCLabel {
+                    text:           _missionActive ? "执行中" : "未执行"
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    color:          _missionActive ? "green" : "gray"
+                }
+            }
+
+            // 载具状态
+            Row {
+                spacing:            ScreenTools.defaultFontPixelWidth * 0.5
+                QGCLabel {
+                    text:           "载具状态:"
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    color:          qgcPal.text
+                }
+                QGCLabel {
+                    text:           _vehicleArmed ? (_vehicleFlying ? "飞行中" : "已解锁") : "未解锁"
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    color:          _vehicleArmed ? (_vehicleFlying ? "green" : "orange") : "gray"
+                }
+            }
+
+            // 飞行模式
+            Row {
+                spacing:            ScreenTools.defaultFontPixelWidth * 0.5
+                QGCLabel {
+                    text:           "飞行模式:"
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    color:          qgcPal.text
+                }
+                QGCLabel {
+                    text:           _vehicleFlightMode || "未知"
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    color:          _vehicleInMissionMode ? "green" : "gray"
+                }
+            }
+
+            // 任务UUID（如果有）
+            Row {
+                spacing:            ScreenTools.defaultFontPixelWidth * 0.5
+                visible:            _currentMissionUuid !== ""
+                QGCLabel {
+                    text:           "任务ID:"
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    color:          qgcPal.text
+                }
+                QGCLabel {
+                    text:           _currentMissionUuid.substring(0, 8) + "..."
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    color:          qgcPal.text
+                }
+            }
+
+            // 调试信息
+            Row {
+                spacing:            ScreenTools.defaultFontPixelWidth * 0.5
+                visible:            true // 设置为true以显示调试信息
+                QGCLabel {
+                    text:           "调试:"
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    color:          qgcPal.text
+                }
+                QGCLabel {
+                    text:           "A:" + (_vehicleArmed ? "1" : "0") + 
+                                   " F:" + (_vehicleFlying ? "1" : "0") + 
+                                   " M:" + (_vehicleInMissionMode ? "1" : "0")
+                    font.pointSize: ScreenTools.smallFontPointSize
+                    color:          qgcPal.text
+                    font.family:    "monospace"
+                }
+            }
         }
     }
 }

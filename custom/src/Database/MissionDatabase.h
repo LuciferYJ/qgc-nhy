@@ -11,6 +11,26 @@
 #include <QtCore/QStandardPaths>
 #include <QtCore/QDir>
 #include <QtCore/QUuid>
+#include <QDebug>
+
+// 成果类型枚举
+enum ResultType {
+    RESULT_TYPE_AIRCRAFT = 0,    // 飞机
+    RESULT_TYPE_VEHICLE = 1,     // 车
+    RESULT_TYPE_BUILDING = 2     // 建筑物
+};
+
+// 成果数据结构
+struct ResultData {
+    int type;              // 成果类型 (0:飞机, 1:车, 2:建筑物)
+    QString filePath;      // 文件路径
+    double longitude;      // 经度
+    double latitude;       // 纬度
+    
+    ResultData() : type(0), longitude(0.0), latitude(0.0) {}
+    ResultData(int t, const QString &path, double lon, double lat) 
+        : type(t), filePath(path), longitude(lon), latitude(lat) {}
+};
 
 class MissionDatabase : public QObject
 {
@@ -56,9 +76,9 @@ public:
     };
 
     Q_INVOKABLE bool addMission(const QString &uuid, const QString &routeUuid, 
-                               const QString &logFileName, const QString &routeBackup, const QString &waypoints);
+                               const QString &logFileName, const QString &waypoints);
     Q_INVOKABLE bool addMissionWithTime(const QString &uuid, const QString &routeUuid, 
-                                       qint64 startTime, const QString &logFileName, const QString &routeBackup, const QString &waypoints);
+                                       qint64 startTime, const QString &logFileName, const QString &waypoints);
     Q_INVOKABLE bool updateMissionResult(const QString &uuid, const QString &resultUuid);
     Q_INVOKABLE bool updateMissionEndTime(const QString &uuid, qint64 endTime);
     Q_INVOKABLE bool deleteMission(const QString &uuid);
@@ -86,17 +106,23 @@ public:
     Q_INVOKABLE qint64 getCurrentTimestamp() { return QDateTime::currentSecsSinceEpoch(); }
     Q_INVOKABLE bool clearAllData();  // 清空所有数据表
     Q_INVOKABLE void checkTableStructure();  // 检查表结构
-    Q_INVOKABLE bool migrateDatabaseSchema();  // 检查数据库架构（为将来升级预留）
     
-    // 航点数据处理工具函数
-    Q_INVOKABLE QString createWaypointsJson(const QJsonArray &waypoints);
-    Q_INVOKABLE QJsonArray parseWaypointsJson(const QString &waypointsJson);
-    Q_INVOKABLE QString createWaypointJson(double longitude, double latitude, double altitude, int type);
+    // ==================== 当前航线UUID管理 ====================
+    // 设置当前航线UUID
+    Q_INVOKABLE void setCurrentRouteUuid(const QString &routeUuid);
     
-    // 成果数据处理工具函数
-    Q_INVOKABLE QString createResultsJson(const QJsonArray &results);
-    Q_INVOKABLE QJsonArray parseResultsJson(const QString &resultsJson);
-    Q_INVOKABLE QString createResultJson(const QString &imagePath, const QString &category);
+    // 获取当前航线UUID
+    Q_INVOKABLE QString getCurrentRouteUuid();
+    
+    // 清除当前航线UUID
+    Q_INVOKABLE void clearCurrentRouteUuid(); 
+    
+    // 获取类型名称
+    Q_INVOKABLE QString getResultTypeName(int type);
+    
+    // 获取所有类型名称
+    Q_INVOKABLE QJsonObject getAllResultTypeNames();
+    
 
 signals:
     void databaseError(const QString &error);
@@ -113,6 +139,9 @@ private:
     QSqlDatabase _database;
     bool _isConnected;
     QString _connectionName;
+    
+    // 当前航线UUID存储
+    QString _currentRouteUuid;
     
     // 表创建SQL
     static const QString _createRoutesTableSQL;
