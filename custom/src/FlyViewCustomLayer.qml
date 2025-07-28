@@ -222,13 +222,13 @@ Item {
         leftEdgeBottomInset:    parentToolInsets.leftEdgeBottomInset
         rightEdgeTopInset:      parentToolInsets.rightEdgeTopInset
         rightEdgeCenterInset:   parentToolInsets.rightEdgeCenterInset
-        rightEdgeBottomInset:   parent.width - customStatusPanel.x
+        rightEdgeBottomInset:   parentToolInsets.rightEdgeBottomInset  // 使用父级边界值，因为customStatusPanel已隐藏
         topEdgeLeftInset:       parentToolInsets.topEdgeLeftInset
-        topEdgeCenterInset:     compassArrowIndicator.y + compassArrowIndicator.height
+        topEdgeCenterInset:     parentToolInsets.topEdgeCenterInset  // 使用父级边界值，因为compassArrowIndicator已隐藏
         topEdgeRightInset:      parentToolInsets.topEdgeRightInset
         bottomEdgeLeftInset:    parentToolInsets.bottomEdgeLeftInset
         bottomEdgeCenterInset:  parentToolInsets.bottomEdgeCenterInset
-        bottomEdgeRightInset:   parent.height - attitudeIndicator.y
+        bottomEdgeRightInset:   parentToolInsets.bottomEdgeRightInset  // 使用父级边界值，因为attitudeIndicator已隐藏
     }
 
     // This is an example of how you can use parent tool insets to position an element on the custom fly view layer
@@ -331,6 +331,7 @@ Item {
         anchors.right:          compassBackground.left
         anchors.rightMargin:    _toolsMargin
         source:                 "qrc:/Custom/qml/QGroundControl/FlightDisplay/CustomStatusPanel.qml"
+        visible:                false  // 隐藏自定义状态面板
     }
 
 
@@ -344,6 +345,7 @@ Item {
         height:                 attitudeIndicator.height * 0.75
         radius:                 2
         color:                  qgcPal.window
+        visible:                false  // 隐藏罗盘背景
 
         Rectangle {
             id:                     compassBezel
@@ -423,6 +425,7 @@ Item {
         width:                  height
         radius:                 height * 0.5
         color:                  qgcPal.windowShade
+        visible:                false  // 隐藏姿态指示器
 
         CustomAttitudeWidget {
             size:               parent.height * 0.95

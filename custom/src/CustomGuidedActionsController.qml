@@ -31,14 +31,21 @@ QtObject {
     readonly property int actionCustomTakeoff: 10000 + 0  // customActionStart = 10000
     readonly property int actionCustomHome: 10000 + 1
     
+    // 起飞/结束状态控制
+    property bool _isTakeoffMode: true  // true=起飞模式, false=结束模式
+    property bool _canTakeoff: false    // 是否允许起飞，默认false，真实数据来自UDP接收
+    
     // 地图点击模式控制
     property bool homePositionMapClickMode: false
     property var activeHomePositionDialog: null
 
-    readonly property string customButtonTitle: qsTr("我的起飞")
+    // 动态按钮文字和标题
+    property string customButtonTitle: _isTakeoffMode ? qsTr("我的起飞") : qsTr("结束任务")
     readonly property string customHomeTitle: qsTr("设置Home")
 
-    readonly property string customButtonMessage: qsTr("执行自定义起飞逻辑，无需检查载具状态")
+    property string customButtonMessage: _isTakeoffMode ? 
+        qsTr("执行自定义起飞逻辑，无需检查载具状态") : 
+        qsTr("结束当前任务并返回待机状态")
     readonly property string customHomeMessage: qsTr("执行自定义设置Home逻辑")
 
     function customConfirmAction(actionCode, actionData, mapIndicator, confirmDialog) {
@@ -194,18 +201,45 @@ QtObject {
         }
     }
     
+    // 更新起飞许可状态（供UDP接收器调用）
+    function updateTakeoffPermission(canTakeoff) {
+        var oldValue = _canTakeoff
+        _canTakeoff = canTakeoff
+        
+        if (oldValue !== canTakeoff) {
+            console.log("[INFO] 起飞许可状态更新:", canTakeoff ? "允许" : "禁止")
+        }
+    }
+    
+    // 重置起飞/结束状态到初始状态（起飞模式）
+    function resetTakeoffState() {
+        _isTakeoffMode = true
+        _canTakeoff = false  // 重置时同时重置起飞许可
+        console.log("[INFO] 起飞状态已重置为起飞模式，起飞许可重置为禁止")
+    }
+    
     function _handleMyCustomTakeoff() {
+        // 根据当前状态决定param1的值
+        var param1Value = _isTakeoffMode ? 1.0 : 0.0
+        var actionName = _isTakeoffMode ? "起飞" : "结束"
+        
+        console.log("[INFO] 执行" + actionName + "命令，param1=" + param1Value)
+        
         // 发送自定义MAVLink命令
         var success = CustomCommandSender.sendCommandByUdp(
             0,      // compId (目标组件ID)
             31010,  // MAV_CMD_USER_1
             true,   // showError
-            1.0,    // param1 = 1.0
+            param1Value,  // param1: 1.0=起飞, 0.0=结束
             0, 0, 0, 0, 0, 0  // 其他参数
         )
         
-        if (!success) {
-            console.error("[UDP] 自定义起飞命令发送失败")
+        if (success) {
+            // 命令发送成功，切换状态
+            _isTakeoffMode = !_isTakeoffMode
+            console.log("[INFO] " + actionName + "命令发送成功，切换到" + (_isTakeoffMode ? "起飞" : "结束") + "模式")
+        } else {
+            console.error("[UDP] 自定义" + actionName + "命令发送失败")
         }
     }
 

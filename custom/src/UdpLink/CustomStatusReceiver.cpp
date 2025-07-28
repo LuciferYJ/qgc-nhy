@@ -140,8 +140,18 @@ void CustomStatusReceiver::_handleReceivedData(const QByteArray &data)
 
 void CustomStatusReceiver::_parseMavlinkMessage(const mavlink_message_t &message)
 {
+    // 接收到任何MAVLink消息都认为连接正常
+    if (!_connected) {
+        _connected = true;
+        emit connectedChanged();
+    }
+    
     // 处理不同类型的MAVLink消息
-    if (message.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT) {
+    if (message.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
+        // 更新最后心跳消息时间
+        _lastMessageTime = QDateTime::currentMSecsSinceEpoch();
+        qDebug() << "CustomStatusReceiver: 收到心跳消息";
+    } else if (message.msgid == MAVLINK_MSG_ID_GLOBAL_POSITION_INT) {
         _handleGlobalPositionInt(message);
     } else if (message.msgid == MAVLINK_MSG_ID_ATTITUDE) {
         _handleAttitude(message);
@@ -152,15 +162,6 @@ void CustomStatusReceiver::_handleGlobalPositionInt(const mavlink_message_t &mes
 {
     mavlink_global_position_int_t pos;
     mavlink_msg_global_position_int_decode(&message, &pos);
-    
-    // 更新连接状态
-    if (!_connected) {
-        _connected = true;
-        emit connectedChanged();
-        qDebug() << "CustomStatusReceiver: 开始接收位置数据";
-    }
-    
-    _lastMessageTime = QDateTime::currentMSecsSinceEpoch();
     
     // 更新位置信息
     double newLat = pos.lat / 1e7;          // 转换为度
@@ -189,15 +190,6 @@ void CustomStatusReceiver::_handleAttitude(const mavlink_message_t &message)
 {
     mavlink_attitude_t attitude;
     mavlink_msg_attitude_decode(&message, &attitude);
-    
-    // 更新连接状态
-    if (!_connected) {
-        _connected = true;
-        emit connectedChanged();
-        qDebug() << "CustomStatusReceiver: 开始接收姿态数据";
-    }
-    
-    _lastMessageTime = QDateTime::currentMSecsSinceEpoch();
     
     // 将弧度转换为度
     float newYaw = attitude.yaw * 180.0f / M_PI;

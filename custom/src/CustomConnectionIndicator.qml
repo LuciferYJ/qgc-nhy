@@ -25,7 +25,7 @@ Item {
     anchors.bottom: parent.bottom
 
     property bool showIndicator: true
-    property var  statusReceiver: CustomStatusReceiver
+    property bool isConnected: CustomStatusReceiver.connected  // 直接使用CustomStatusReceiver的连接状态
 
     QGCPalette { id: qgcPal }
 
@@ -43,17 +43,7 @@ Item {
             sourceSize.height:  height
             source:             "/res/connect.svg"
             fillMode:           Image.PreserveAspectFit
-            color:              statusReceiver.connected ? qgcPal.colorGreen : qgcPal.colorRed
-        }
-
-        QGCLabel {
-            id:                 statusLabel
-            anchors.top:        parent.top
-            anchors.bottom:     parent.bottom
-            verticalAlignment:  Text.AlignVCenter
-            text:               statusReceiver.connected ? "正常" : "断线"
-            font.pointSize:     ScreenTools.smallFontPointSize
-            color:              statusReceiver.connected ? qgcPal.colorGreen : qgcPal.colorRed
+            color:              isConnected ? qgcPal.text : qgcPal.colorRed
         }
     }
 
@@ -65,6 +55,15 @@ Item {
     Component {
         id: connectionIndicatorPage
 
-        CustomConnectionIndicatorPage { }
+        CustomConnectionIndicatorPage {
+            // 页面直接使用CustomStatusReceiver，无需传递参数
+        }
+    }
+
+    // 组件完成时初始化
+    Component.onCompleted: {
+        console.log("[INFO] 无人机连接指示器已初始化，使用CustomStatusReceiver管理连接状态")
+        CustomStatusReceiver.startReceiving()
+        console.log("[INFO] 已启动UDP状态接收器")
     }
 }

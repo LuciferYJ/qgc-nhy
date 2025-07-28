@@ -29,10 +29,12 @@ ToolStripActionList {
         
         // 自定义的Takeoff按钮
         GuidedToolStripAction {
-            text:       "起飞"                    // 自定义起飞按钮文字
-            iconSource: "/res/takeoff.svg"           // 使用起飞图标
+            text:       _guidedController._customController._isTakeoffMode ? "起飞" : "结束"  // 动态按钮文字
+            iconSource: _guidedController._customController._isTakeoffMode ? "/res/takeoff.svg" : "/res/land.svg"  // 动态图标
             visible:    true                         // 始终可见
-            enabled:    true                         // 始终可用
+            enabled:    _guidedController._customController._isTakeoffMode ? 
+                       _guidedController._customController._canTakeoff :  // 起飞模式：检查_canTakeoff
+                       true                                                // 结束模式：无限制
             actionID:   _guidedController._customController.actionCustomTakeoff
         },
         

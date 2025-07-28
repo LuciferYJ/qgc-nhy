@@ -27,6 +27,7 @@
         <file alias="QGroundControl/FlightDisplay/FlyViewToolStripActionList.qml">src/FlyViewToolStripActionList.qml</file>
         <file alias="QGroundControl/FlightDisplay/FlyViewBottomRightRowLayout.qml">src/FlyViewBottomRightRowLayout.qml</file>
         <file alias="QGroundControl/FlightDisplay/CustomStatusPanel.qml">src/CustomStatusPanel.qml</file>
+        <file alias="QGroundControl/Controls/MainStatusIndicator.qml">src/QmlControls/MainStatusIndicator.qml</file>
         <file alias="CustomConnectionIndicator.qml">src/CustomConnectionIndicator.qml</file>
         <file alias="CustomConnectionIndicatorPage.qml">src/CustomConnectionIndicatorPage.qml</file>
         <file alias="CustomMissionStatusIndicator.qml">src/CustomMissionStatusIndicator.qml</file>
