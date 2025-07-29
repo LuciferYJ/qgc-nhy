@@ -250,6 +250,37 @@ Item {
 
         property real leftEdgeCenterInset: visible ? x + width : 0
     }
+    
+    // ==================== 左侧QGC原生指示器区域 ====================
+    Column {
+        id:                     leftNativeIndicatorsColumn
+        anchors.left:           parent.left
+        anchors.leftMargin:     _toolsMargin
+        anchors.top:            parent.top
+        anchors.topMargin:      _toolsMargin + parentToolInsets.topEdgeLeftInset
+        spacing:                ScreenTools.defaultFontPixelHeight * 0.5
+        
+        // Remote ID 指示器
+        Loader {
+            id:                     remoteIdIndicatorLoader
+            source:                 "qrc:/qml/QGroundControl/Toolbar/RemoteIDIndicator.qml"
+            visible:                item && item.showIndicator && _activeVehicle
+        }
+        
+        // 云台指示器
+        Loader {
+            id:                     gimbalIndicatorLoader
+            source:                 "qrc:/qml/QGroundControl/Toolbar/GimbalIndicator.qml"
+            visible:                item && item.showIndicator && _activeVehicle
+        }
+        
+        // 链路指示器
+        Loader {
+            id:                     linkIndicatorLoader
+            source:                 "qrc:/qml/QGroundControl/Toolbar/LinkIndicator.qml"
+            visible:                item && item.showIndicator
+        }
+    }
 
     //-------------------------------------------------------------------------
     //-- Heading Indicator
@@ -435,11 +466,57 @@ Item {
         }
     }
 
+    // ==================== QGC原生指示器区域 ====================
+    Row {
+        id:                     nativeIndicatorsRow
+        anchors.top:            parent.top
+        anchors.topMargin:      _toolsMargin + parentToolInsets.topEdgeRightInset
+        anchors.right:          parent.right
+        anchors.rightMargin:    _toolsMargin
+        spacing:                ScreenTools.defaultFontPixelWidth * 0.75
+        
+        // 电量指示器
+        Loader {
+            id:                     batteryIndicatorLoader
+            anchors.top:            parent.top
+            anchors.bottom:         parent.bottom
+            source:                 "qrc:/qml/QGroundControl/Controls/BatteryIndicator.qml"
+            visible:                item && item.showIndicator && _activeVehicle
+        }
+        
+        // GPS指示器
+        Loader {
+            id:                     gpsIndicatorLoader
+            anchors.top:            parent.top
+            anchors.bottom:         parent.bottom
+            source:                 "qrc:/qml/QGroundControl/Toolbar/VehicleGPSIndicator.qml"
+            visible:                item && item.showIndicator && _activeVehicle
+        }
+        
+        // 遥测RSSI指示器
+        Loader {
+            id:                     telemetryIndicatorLoader
+            anchors.top:            parent.top
+            anchors.bottom:         parent.bottom
+            source:                 "qrc:/qml/QGroundControl/Toolbar/TelemetryRSSIIndicator.qml"
+            visible:                item && item.showIndicator && _activeVehicle
+        }
+        
+        // 遥控RSSI指示器
+        Loader {
+            id:                     rcIndicatorLoader
+            anchors.top:            parent.top
+            anchors.bottom:         parent.bottom
+            source:                 "qrc:/qml/QGroundControl/Toolbar/RCRSSIIndicator.qml"
+            visible:                item && item.showIndicator && _activeVehicle
+        }
+    }
+
     // ==================== 任务记录状态显示 ====================
     Rectangle {
         id:                     missionRecordingStatus
-        anchors.top:            parent.top
-        anchors.topMargin:      _toolsMargin + parentToolInsets.topEdgeRightInset
+        anchors.top:            nativeIndicatorsRow.bottom
+        anchors.topMargin:      _toolsMargin
         anchors.right:          parent.right
         anchors.rightMargin:    _toolsMargin
         width:                  ScreenTools.defaultFontPixelWidth * 25
@@ -565,6 +642,84 @@ Item {
                     font.pointSize: ScreenTools.smallFontPointSize
                     color:          qgcPal.text
                     font.family:    "monospace"
+                }
+            }
+        }
+    }
+    
+    // ==================== 底部消息指示器区域 ====================
+    Rectangle {
+        id:                     bottomMessageArea
+        anchors.bottom:         parent.bottom
+        anchors.bottomMargin:   _toolsMargin + parentToolInsets.bottomEdgeCenterInset
+        anchors.horizontalCenter: parent.horizontalCenter
+        width:                  messageRow.width + ScreenTools.defaultFontPixelWidth
+        height:                 ScreenTools.defaultFontPixelHeight * 2
+        radius:                 height / 2
+        color:                  qgcPal.windowShade
+        opacity:                0.9
+        visible:                _activeVehicle && _activeVehicle.messageCount > 0
+        
+        Row {
+            id:                     messageRow
+            anchors.centerIn:       parent
+            spacing:                ScreenTools.defaultFontPixelWidth * 0.5
+            
+            // 消息图标
+            QGCColoredImage {
+                id:                 messageIcon
+                anchors.verticalCenter: parent.verticalCenter
+                width:              ScreenTools.defaultFontPixelHeight * 1.2
+                height:             width
+                source:             "/res/VehicleMessages.png"
+                color:              getMessageColor()
+                
+                function getMessageColor() {
+                    if (_activeVehicle) {
+                        if (_activeVehicle.messageTypeError) {
+                            return qgcPal.colorRed
+                        } else if (_activeVehicle.messageTypeWarning) {
+                            return qgcPal.colorOrange
+                        } else if (_activeVehicle.messageTypeInfo) {
+                            return qgcPal.colorBlue
+                        }
+                    }
+                    return qgcPal.text
+                }
+            }
+            
+            // 消息文本
+            QGCLabel {
+                anchors.verticalCenter: parent.verticalCenter
+                text:               _activeVehicle ? qsTr("Messages") + " (" + _activeVehicle.messageCount + ")" : ""
+                font.pointSize:     ScreenTools.smallFontPointSize
+                color:              messageIcon.getMessageColor()
+            }
+        }
+        
+        MouseArea {
+            anchors.fill:   parent
+            onClicked: {
+                // 点击显示消息详情 - 这里可以调用原生的消息弹窗
+                if (_activeVehicle) {
+                    mainWindow.showIndicatorDrawer(vehicleMessagesPage, bottomMessageArea)
+                }
+            }
+        }
+        
+        // 简单的消息页面组件
+        Component {
+            id: vehicleMessagesPage
+            
+            Rectangle {
+                width:  ScreenTools.defaultFontPixelWidth * 40
+                height: ScreenTools.defaultFontPixelHeight * 20
+                color:  qgcPal.window
+                
+                QGCLabel {
+                    anchors.centerIn: parent
+                    text: qsTr("Vehicle Messages")
+                    font.pointSize: ScreenTools.mediumFontPointSize
                 }
             }
         }

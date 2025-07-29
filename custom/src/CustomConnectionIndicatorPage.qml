@@ -25,8 +25,8 @@ Rectangle {
     border.width: 1
     radius: ScreenTools.defaultFontPixelWidth * 0.5
 
-    // 直接使用CustomStatusReceiver的连接状态
-    property bool isConnected: CustomStatusReceiver.connected
+    // 直接使用SimpleMavlinkUdp的连接状态
+    property bool isConnected: SimpleMavlinkUdp.connected
     property string connectionStatus: isConnected ? "正常" : "断开"
 
     QGCPalette { id: qgcPal }
@@ -78,6 +78,6 @@ Rectangle {
     // 组件完成时初始化
     Component.onCompleted: {
         console.log("[INFO] 无人机连接详情页已初始化")
-        // 状态管理由CustomStatusReceiver负责，这里只负责显示
+        // 状态管理由SimpleMavlinkUdp负责，这里只负责显示
     }
 }

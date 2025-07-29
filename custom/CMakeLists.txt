@@ -76,12 +76,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/FirmwarePlugin/CustomFirmwarePlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/FirmwarePlugin/CustomFirmwarePluginFactory.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/FirmwarePlugin/CustomFirmwarePluginFactory.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/UdpLink/UdpCommandLink.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/UdpLink/UdpCommandLink.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/UdpLink/CustomCommandSender.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/UdpLink/CustomCommandSender.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/UdpLink/CustomStatusReceiver.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/UdpLink/CustomStatusReceiver.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/UdpLink/SimpleMavlinkUdp.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/UdpLink/SimpleMavlinkUdp.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Database/MissionDatabase.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Database/MissionDatabase.h
     CACHE INTERNAL "" FORCE

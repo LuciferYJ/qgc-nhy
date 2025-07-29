@@ -24,24 +24,15 @@ Rectangle {
     property var activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
     property bool expanded: false
     
-    // 自定义状态接收器
-    property var statusReceiver: CustomStatusReceiver
+    // 状态数据 - 使用activeVehicle的数据
+    property real latitude: activeVehicle ? activeVehicle.coordinate.latitude : 0
+    property real longitude: activeVehicle ? activeVehicle.coordinate.longitude : 0
+    property real altitude: activeVehicle ? activeVehicle.altitudeRelative.rawValue : 0
     
-    // 状态数据 - 优先使用CustomStatusReceiver的数据，fallback到activeVehicle
-    property real latitude: statusReceiver.connected ? statusReceiver.latitude : 
-                           (activeVehicle ? activeVehicle.coordinate.latitude : 0)
-    property real longitude: statusReceiver.connected ? statusReceiver.longitude : 
-                            (activeVehicle ? activeVehicle.coordinate.longitude : 0)
-    property real altitude: statusReceiver.connected ? statusReceiver.altitude : 
-                           (activeVehicle ? activeVehicle.altitudeRelative.rawValue : 0)
-    
-    // 姿态数据 - 优先使用CustomStatusReceiver的数据，fallback到activeVehicle
-    property real yaw: statusReceiver.connected ? statusReceiver.yaw : 
-                      (activeVehicle ? activeVehicle.heading.rawValue : 0)
-    property real pitch: statusReceiver.connected ? statusReceiver.pitch : 
-                        (activeVehicle ? activeVehicle.pitch.rawValue : 0)
-    property real roll: statusReceiver.connected ? statusReceiver.roll : 
-                       (activeVehicle ? activeVehicle.roll.rawValue : 0)
+    // 姿态数据 - 使用activeVehicle的数据
+    property real yaw: activeVehicle ? activeVehicle.heading.rawValue : 0
+    property real pitch: activeVehicle ? activeVehicle.pitch.rawValue : 0
+    property real roll: activeVehicle ? activeVehicle.roll.rawValue : 0
     
     // 尺寸 - 改为横向扩充
     property real collapsedWidth: ScreenTools.defaultFontPixelWidth * 3

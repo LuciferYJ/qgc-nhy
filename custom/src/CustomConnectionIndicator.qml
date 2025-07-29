@@ -25,7 +25,7 @@ Item {
     anchors.bottom: parent.bottom
 
     property bool showIndicator: true
-    property bool isConnected: CustomStatusReceiver.connected  // 直接使用CustomStatusReceiver的连接状态
+    property bool isConnected: SimpleMavlinkUdp.connected  // 使用简化的UDP类
 
     QGCPalette { id: qgcPal }
 
@@ -56,14 +56,14 @@ Item {
         id: connectionIndicatorPage
 
         CustomConnectionIndicatorPage {
-            // 页面直接使用CustomStatusReceiver，无需传递参数
+            // 页面直接使用SimpleMavlinkUdp，无需传递参数
         }
     }
 
     // 组件完成时初始化
     Component.onCompleted: {
-        console.log("[INFO] 无人机连接指示器已初始化，使用CustomStatusReceiver管理连接状态")
-        CustomStatusReceiver.startReceiving()
-        console.log("[INFO] 已启动UDP状态接收器")
+        console.log("[INFO] 无人机连接指示器已初始化，使用SimpleMavlinkUdp管理连接状态")
+        SimpleMavlinkUdp.start(7777)
+        console.log("[INFO] 已启动UDP MAVLink接收器，监听端口7777")
     }
 }

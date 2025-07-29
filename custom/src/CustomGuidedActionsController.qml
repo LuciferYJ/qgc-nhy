@@ -226,12 +226,9 @@ QtObject {
         console.log("[INFO] 执行" + actionName + "命令，param1=" + param1Value)
         
         // 发送自定义MAVLink命令
-        var success = CustomCommandSender.sendCommandByUdp(
-            0,      // compId (目标组件ID)
-            31010,  // MAV_CMD_USER_1
-            true,   // showError
-            param1Value,  // param1: 1.0=起飞, 0.0=结束
-            0, 0, 0, 0, 0, 0  // 其他参数
+        var success = SimpleMavlinkUdp.sendCommand(
+            31010,      // MAV_CMD_USER_1
+            param1Value // param1: 1.0=起飞, 0.0=结束
         )
         
         if (success) {
@@ -261,12 +258,12 @@ QtObject {
         }
         
         // 通过UDP发送设置Home位置的MAVLink命令
-        var success = CustomCommandSender.sendCommandByUdp(
-                0,      // compId (目标组件ID)
-                31011,  // MAV_CMD_USER_2
-                true,   // showError
-                1.0,    // param1 = 1.0 表示使用自定义坐标
-                latitude, longitude, altitude, 0, 0, 0  // 坐标参数
+        var success = SimpleMavlinkUdp.sendCommand(
+                31011,    // MAV_CMD_USER_2
+                1.0,      // param1 = 1.0 表示使用自定义坐标
+                latitude, // param2 = latitude
+                longitude,// param3 = longitude
+                altitude  // param4 = altitude
             )
         
         if (!success) {

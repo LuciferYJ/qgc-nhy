@@ -5,6 +5,7 @@ import QGroundControl 1.0
 import QGroundControl.Controls 1.0
 import QGroundControl.ScreenTools 1.0
 import QGroundControl.Palette 1.0
+import Custom.UdpLink
 
 Rectangle {
     id: root
@@ -15,20 +16,26 @@ Rectangle {
     border.width: 1
     radius: ScreenTools.defaultFontPixelWidth * 0.5
 
-    property string locationStatus: "无定位"
-    property string visualStatus: "未初始化"
-    property int satelliteCount: 0
-    property real accuracy: 0.0
-    property real latitude: 0.0
-    property real longitude: 0.0
+    // 从SimpleMavlinkUdp获取真实数据
+    property int locationStatusIndex: SimpleMavlinkUdp.locationStatus
+    property int visualSubStatusIndex: SimpleMavlinkUdp.visualSubStatus
+    property int satelliteCount: SimpleMavlinkUdp.satelliteCount
+    property real accuracy: SimpleMavlinkUdp.locationAccuracy
+    
+    // 状态映射：将数字索引转换为中文状态
+    property var locationStates: ["无定位", "卫导定位", "视觉定位"]
+    property var visualStates: ["未初始化", "单应", "ORB SLAM"]
+    
+    property string locationStatus: (locationStatusIndex >= 0 && locationStatusIndex < locationStates.length) ? 
+                                   locationStates[locationStatusIndex] : "未知"
+    property string visualStatus: (visualSubStatusIndex >= 0 && visualSubStatusIndex < visualStates.length) ? 
+                                 visualStates[visualSubStatusIndex] : "未知"
 
     QGCPalette { id: qgcPal }
 
     function getLocationStatusColor() {
         switch(locationStatus) {
             case "无定位": return qgcPal.colorRed
-            case "卫导定位": return qgcPal.colorGreen
-            case "视觉定位": return qgcPal.colorGreen
             default: return qgcPal.colorGrey
         }
     }
@@ -189,22 +196,8 @@ Rectangle {
         }
     }
 
-    // 模拟数据更新
-    Timer {
-        interval: 1000
-        running: true
-        repeat: true
-        onTriggered: {
-            // 模拟实时数据更新
-            if (locationStatus === "卫导定位") {
-                accuracy = accuracy + (Math.random() - 0.5) * 0.2
-                if (accuracy < 0.5) accuracy = 0.5
-                if (accuracy > 5.0) accuracy = 5.0
-            } else if (locationStatus === "视觉定位") {
-                accuracy = accuracy + (Math.random() - 0.5) * 0.05
-                if (accuracy < 0.1) accuracy = 0.1
-                if (accuracy > 1.0) accuracy = 1.0
-            }
-        }
+    // 组件完成时初始化
+    Component.onCompleted: {
+        console.log("定位状态详情页已初始化，使用SimpleMavlinkUdp提供的真实数据")
     }
 } 
