@@ -33,7 +33,10 @@ QtObject {
     
     // 起飞/结束状态控制
     property bool _isTakeoffMode: true  // true=起飞模式, false=结束模式
-    property bool _canTakeoff: false    // 是否允许起飞，默认false，真实数据来自UDP接收
+    
+    // 从SimpleMavlinkUdp获取任务状态并计算_canTakeoff
+    property int _missionState: SimpleMavlinkUdp.missionState
+    property bool _canTakeoff: (_missionState === 1)  // 只有就绪状态(1)才可以起飞
     
     // 地图点击模式控制
     property bool homePositionMapClickMode: false
@@ -199,23 +202,6 @@ QtObject {
         if (dialog) {
             dialog.destroy()
         }
-    }
-    
-    // 更新起飞许可状态（供UDP接收器调用）
-    function updateTakeoffPermission(canTakeoff) {
-        var oldValue = _canTakeoff
-        _canTakeoff = canTakeoff
-        
-        if (oldValue !== canTakeoff) {
-            console.log("[INFO] 起飞许可状态更新:", canTakeoff ? "允许" : "禁止")
-        }
-    }
-    
-    // 重置起飞/结束状态到初始状态（起飞模式）
-    function resetTakeoffState() {
-        _isTakeoffMode = true
-        _canTakeoff = false  // 重置时同时重置起飞许可
-        console.log("[INFO] 起飞状态已重置为起飞模式，起飞许可重置为禁止")
     }
     
     function _handleMyCustomTakeoff() {
