@@ -40,6 +40,7 @@
         <file alias="RouteListDialog.qml">res/Custom/RouteListDialog.qml</file>
         <file alias="MissionListDialog.qml">res/Custom/MissionListDialog.qml</file>
         <file alias="NewRouteDialog.qml">src/NewRouteDialog.qml</file>
+        <file alias="SaveRouteNameDialog.qml">src/SaveRouteNameDialog.qml</file>
     </qresource>
     <qresource prefix="/Custom/res">
         <file alias="QGCLogoFull.svg">res/QGCLogoFull.svg</file>

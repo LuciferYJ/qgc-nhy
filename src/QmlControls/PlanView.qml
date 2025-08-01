@@ -1325,39 +1325,60 @@ Item {
         }
     }
 
-    // 保存为新航线 - 使用简化的C++接口
+    // 保存为新航线 - 增强版本，支持检查当前航线关联
     function saveAsNewRoute() {
-        // 生成航线名称
-        var routeName = "飞行任务" + new Date().getTime().toString().slice(-8)
+        // 检查当前航线是否已被任务关联
+        var isCurrentRouteLinked = MissionDatabase.checkCurrentRouteUuid()
         
-        console.log("开始保存航线:", routeName)
-        
-        // 调试：打印visualItems的详细信息
-        console.log("_missionController.visualItems.count:", _missionController.visualItems.count)
-        
-        // 调用新的简化接口，直接传入visualItems
-        var success = MissionDatabase.addRoute(routeName, _missionController.visualItems)
-        
-        if (success) {
-            // 获取当前航线UUID（由C++方法设置）
-            _currentRouteUuid = MissionDatabase.getCurrentRouteUuid()
-            
-            console.log("航线保存成功！")
-            console.log("- 航线名称:", routeName)
-            console.log("- UUID:", _currentRouteUuid)
-            
+        if (isCurrentRouteLinked) {
+            // 弹框询问是否另存为
             mainWindow.showMessageDialog(
-                qsTr("保存成功"),
-                qsTr("新航线已创建！\n\n") +
-                qsTr("航线名称: %1\n").arg(routeName) +
-                qsTr("UUID: %1").arg(_currentRouteUuid)
+                qsTr("航线另存为"),
+                qsTr("原始航线已关联任务，是否另存为？"),
+                Dialog.Yes | Dialog.No,
+                function() {
+                    // 用户选择确定，显示航线名称输入对话框
+                    showSaveRouteNameDialog()
+                }
             )
         } else {
-            console.log("航线保存失败！")
-            mainWindow.showMessageDialog(
-                qsTr("保存失败"),
-                qsTr("航线保存失败！\n\n请检查数据库连接状态。")
-            )
+            // 直接显示航线名称输入对话框
+            showSaveRouteNameDialog()
+        }
+    }
+    
+    // 显示航线名称输入对话框
+    function showSaveRouteNameDialog() {
+        var component = Qt.createComponent("qrc:/Custom/SaveRouteNameDialog.qml")
+        if (component.status === Component.Ready) {
+            var dialog = component.createObject(mainWindow, {
+                "visualItems": _missionController.visualItems
+            })
+            if (dialog) {
+                dialog.accepted.connect(function() {
+                    console.log("用户确定保存航线")
+                })
+                dialog.rejected.connect(function() {
+                    console.log("用户取消保存航线")
+                })
+                dialog.open()
+            } else {
+                console.error("无法创建航线名称对话框对象")
+                mainWindow.showMessageDialog(qsTr("错误"), qsTr("无法创建航线名称对话框"))
+            }
+        } else if (component.status === Component.Loading) {
+            console.log("航线名称对话框组件正在加载...")
+            component.statusChanged.connect(function() {
+                if (component.status === Component.Ready) {
+                    showSaveRouteNameDialog()
+                } else if (component.status === Component.Error) {
+                    console.error("航线名称对话框组件加载失败:", component.errorString())
+                    mainWindow.showMessageDialog(qsTr("错误"), qsTr("无法加载航线名称对话框: ") + component.errorString())
+                }
+            })
+        } else {
+            console.error("航线名称对话框组件错误:", component.errorString())
+            mainWindow.showMessageDialog(qsTr("错误"), qsTr("无法加载航线名称对话框: ") + component.errorString())
         }
     }
 
@@ -1365,8 +1386,6 @@ Item {
     
     // 从数据库加载航线数据到地图 - 模拟QGC从PX4下载航线的底层逻辑
     function loadRouteFromDatabase(routeUuid, waypoints) {
-        console.log("航线UUID:", routeUuid)
-        console.log("航点数量:", waypoints.length)
         
         try {
             // 设置当前航线UUID
@@ -1379,7 +1398,6 @@ Item {
             // currentRouteUuidChanged(_currentRouteUuid)
             
             if (waypoints.length === 0) {
-                console.log("没有航点数据")
                 return
             }
             
@@ -1391,7 +1409,6 @@ Item {
             
             // 2. 等待清空完成，然后开始添加航点
             // QGC会自动创建MissionSettingsItem (Home Position)
-            console.log("已清空当前任务，开始添加航点")
             
             // 3. 逐个处理航点数据，直接创建对应的visual item
             for (var i = 0; i < waypoints.length; i++) {
@@ -1419,7 +1436,6 @@ Item {
                     )
                     
                     if (visualItem) {
-                        console.log("创建TakeoffMissionItem成功")
                         
                         // 重要：insertTakeoffItem 会忽略传入的坐标参数，需要手动设置
                         // 首先设置 launchTakeoffAtSameLocation 为 false，这样可以独立设置起飞坐标
@@ -1466,8 +1482,6 @@ Item {
                             visualItem.missionItem.setFrame(waypoint.frame || 3)
                             visualItem.missionItem.setAutoContinue(waypoint.autocontinue !== undefined ? waypoint.autocontinue : true)
                         }
-                    } else {
-                        console.log("创建TakeoffMissionItem失败")
                     }
                 } else {
                     // 创建SimpleMissionItem
@@ -1500,8 +1514,6 @@ Item {
                         if (waypoint.altitudeMode !== undefined && visualItem.setAltitudeMode) {
                             visualItem.setAltitudeMode(waypoint.altitudeMode)
                         }
-                    } else {
-                        console.log("创建SimpleMissionItem失败")
                     }
                 }
             }
@@ -1514,7 +1526,7 @@ Item {
                 _missionController.setCurrentPlanViewSeqNum(1, true)
             }
             
-            console.log("航线加载完成！总共", _missionController.visualItems.count, "个项目")
+
             
         } catch (error) {
             console.log("加载航线时发生错误:", error)

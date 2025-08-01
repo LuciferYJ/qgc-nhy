@@ -121,6 +121,9 @@ public:
     // 清除当前航线UUID
     Q_INVOKABLE void clearCurrentRouteUuid(); 
     
+    // 检查当前航线UUID是否被任务关联
+    Q_INVOKABLE bool checkCurrentRouteUuid();
+    
     // 获取类型名称
     Q_INVOKABLE QString getResultTypeName(int type);
     

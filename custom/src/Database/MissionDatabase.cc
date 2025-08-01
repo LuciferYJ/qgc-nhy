@@ -447,19 +447,15 @@ QString MissionDatabase::checkRouteUnique(const QVariant& visualItems)
 {
     if (!_isConnected) return QString(); // 如果数据库未连接，返回空
     
-    qDebug() << "=== checkRouteUnique: 开始检查航线唯一性 ===";
-    
     // visualItems是一个QObject*（QQmlListModel），需要通过方法访问
     QObject* visualItemsObj = visualItems.value<QObject*>();
     if (!visualItemsObj) {
-        qDebug() << "checkRouteUnique: visualItemsObj为空";
         return QString();
     }
     
     // 获取count属性
     QVariant countVariant = visualItemsObj->property("count");
     int itemCount = countVariant.toInt();
-    qDebug() << "checkRouteUnique: visualItems count =" << itemCount;
     
     // 创建规范化的航点数组用于哈希比较
     QJsonArray normalizedWaypoints;
@@ -477,8 +473,7 @@ QString MissionDatabase::checkRouteUnique(const QVariant& visualItems)
         QVariant specifiesCoordinate = item->property("specifiesCoordinate");
         QVariant sequenceNumber = item->property("sequenceNumber");
         
-        qDebug() << "checkRouteUnique: item" << i << "specifiesCoordinate:" << specifiesCoordinate.toBool() 
-                 << "sequenceNumber:" << sequenceNumber.toInt();
+        
         
         if (specifiesCoordinate.toBool() && sequenceNumber.toInt() > 0) {
             // 获取坐标数据 - 使用QGeoCoordinate类型
@@ -486,7 +481,6 @@ QString MissionDatabase::checkRouteUnique(const QVariant& visualItems)
             QGeoCoordinate coordinate = coordinateVariant.value<QGeoCoordinate>();
             
             if (!coordinate.isValid()) {
-                qDebug() << "checkRouteUnique: item" << i << "坐标无效";
                 continue;
             }
             
@@ -500,9 +494,6 @@ QString MissionDatabase::checkRouteUnique(const QVariant& visualItems)
             QObject* altitudeObj = altitudeVariant.value<QObject*>();
             if (altitudeObj) {
                 altitudeValue = altitudeObj->property("rawValue").toDouble();
-                qDebug() << "checkRouteUnique: item" << i << "使用altitude.rawValue:" << altitudeValue;
-            } else {
-                qDebug() << "checkRouteUnique: item" << i << "使用coordinate.altitude():" << altitudeValue;
             }
             
             // 使用与addRoute相同的字段名和精度，但规范化为字符串进行哈希比较
@@ -511,10 +502,6 @@ QString MissionDatabase::checkRouteUnique(const QVariant& visualItems)
             normalizedWaypoint["altitude"] = QString::number(altitudeValue, 'f', 2);
             normalizedWaypoint["sequence"] = sequenceNumber.toInt();
             normalizedWaypoint["command"] = item->property("command").toInt();
-            
-            qDebug() << "checkRouteUnique: item" << i << "最终altitude:" << altitudeValue 
-                     << "坐标:" << coordinate.latitude() << coordinate.longitude()
-                     << "命令:" << item->property("command").toInt();
             
             // 获取MAVLink参数（使用与addRoute相同的逻辑）
             QVariant missionItemVariant = item->property("missionItem");
@@ -532,14 +519,14 @@ QString MissionDatabase::checkRouteUnique(const QVariant& visualItems)
                 normalizedWaypoint["param3"] = QString::number(param3.toDouble(), 'f', 6);
                 normalizedWaypoint["param4"] = QString::number(param4.toDouble(), 'f', 6);
                 
-                qDebug() << "checkRouteUnique: item" << i << "参数:" << param1.toDouble() << param2.toDouble() << param3.toDouble() << param4.toDouble();
+
             } else {
                 // 默认值（与addRoute保持一致）
                 normalizedWaypoint["param1"] = "0.000000";
                 normalizedWaypoint["param2"] = "0.000000";
                 normalizedWaypoint["param3"] = "0.000000";
                 normalizedWaypoint["param4"] = "0.000000";
-                qDebug() << "checkRouteUnique: item" << i << "使用默认参数";
+
             }
             
             normalizedWaypoints.append(normalizedWaypoint);
@@ -551,13 +538,12 @@ QString MissionDatabase::checkRouteUnique(const QVariant& visualItems)
     QByteArray inputHash = QCryptographicHash::hash(normalizedJson.toUtf8(), QCryptographicHash::Sha256);
     QString inputHashHex = inputHash.toHex();
     
-    qDebug() << "checkRouteUnique: 输入数据JSON:" << normalizedJson;
-    qDebug() << "checkRouteUnique: 输入数据哈希:" << inputHashHex;
+
     
     // 获取数据库中所有航线的航点数据
     QSqlQuery query(_database);
     if (!query.exec("SELECT uuid, waypoints FROM routes")) {
-        qDebug() << "checkRouteUnique: 数据库查询失败";
+
         return QString(); // 查询失败时返回空
     }
     
@@ -567,25 +553,23 @@ QString MissionDatabase::checkRouteUnique(const QVariant& visualItems)
         QString routeUuid = query.value("uuid").toString();
         QString existingWaypoints = query.value("waypoints").toString();
         
-        qDebug() << "checkRouteUnique: 检查数据库航线" << routeIndex << "UUID:" << routeUuid;
+
         
         // 解析现有航线的JSON数据并生成相同格式的规范化哈希
         QJsonParseError error;
         QJsonDocument doc = QJsonDocument::fromJson(existingWaypoints.toUtf8(), &error);
         if (error.error != QJsonParseError::NoError) {
-            qDebug() << "checkRouteUnique: 数据库航线" << routeIndex << "JSON解析失败:" << error.errorString();
             continue;
         }
         
         if (!doc.isArray()) {
-            qDebug() << "checkRouteUnique: 数据库航线" << routeIndex << "不是数组格式";
             continue;
         }
         
         QJsonArray existingArray = doc.array();
         QJsonArray existingNormalized;
         
-        qDebug() << "checkRouteUnique: 数据库航线" << routeIndex << "原始数据:" << existingWaypoints;
+
         
         // 对现有航线生成相同的规范化格式
         for (const QJsonValue& value : existingArray) {
@@ -615,19 +599,17 @@ QString MissionDatabase::checkRouteUnique(const QVariant& visualItems)
         QByteArray existingHash = QCryptographicHash::hash(existingNormalizedJson.toUtf8(), QCryptographicHash::Sha256);
         QString existingHashHex = existingHash.toHex();
         
-        qDebug() << "checkRouteUnique: 数据库航线" << routeIndex << "规范化JSON:" << existingNormalizedJson;
-        qDebug() << "checkRouteUnique: 数据库航线" << routeIndex << "哈希:" << existingHashHex;
-        qDebug() << "checkRouteUnique: 哈希是否匹配:" << (inputHashHex == existingHashHex ? "YES" : "NO");
+
         
         if (inputHashHex == existingHashHex) {
-            qDebug() << "checkRouteUnique: 找到匹配的航线 UUID:" << routeUuid;
+
             return routeUuid; // 发现重复，返回匹配的航线UUID
         }
         
         routeIndex++;
     }
     
-    qDebug() << "checkRouteUnique: 未找到匹配的航线，返回空字符串";
+
     return QString(); // 未发现重复，返回空字符串
 }
 
@@ -638,7 +620,7 @@ void MissionDatabase::handleDownloadedRoute(const QVariant& visualItems)
         return;
     }
     
-    qDebug() << "MissionDatabase::handleDownloadedRoute: 开始处理下载的航线";
+
     
     // 检查下载的航线是否与数据库中的航线重复
     QString matchedRouteUuid = checkRouteUnique(visualItems);
@@ -646,17 +628,17 @@ void MissionDatabase::handleDownloadedRoute(const QVariant& visualItems)
     if (!matchedRouteUuid.isEmpty()) {
         // 发现重复航线，设置为当前航线UUID
         setCurrentRouteUuid(matchedRouteUuid);
-        qDebug() << "检测到重复航线，设置当前航线UUID:" << matchedRouteUuid;
+
         
         // 获取航线信息用于显示
         QJsonObject routeInfo = getRoute(matchedRouteUuid);
         if (!routeInfo.isEmpty()) {
             QString routeName = routeInfo["name"].toString();
-            qDebug() << "关联到现有航线:" << routeName;
+
         }
     } else {
         // 未发现重复，需要用户输入新航线名称
-        qDebug() << "检测到新航线，发射needNewRouteName信号";
+
         emit needNewRouteName(QVariant(visualItems));
     }
 }
@@ -992,6 +974,29 @@ void MissionDatabase::clearCurrentRouteUuid()
 {
     qDebug() << "清除当前航线UUID";
     _currentRouteUuid.clear();
+}
+
+bool MissionDatabase::checkCurrentRouteUuid()
+{
+    if (!_isConnected || _currentRouteUuid.isEmpty()) {
+        return false;
+    }
+    
+    QSqlQuery query(_database);
+    query.prepare("SELECT COUNT(*) FROM missions WHERE route_uuid = ?");
+    query.addBindValue(_currentRouteUuid);
+    
+    if (!query.exec()) {
+        qWarning() << "检查当前航线UUID关联失败:" << query.lastError().text();
+        return false;
+    }
+    
+    if (query.next()) {
+        int count = query.value(0).toInt();
+        return count > 0; // 如果有任务关联，返回true
+    }
+    
+    return false;
 }
 
 
