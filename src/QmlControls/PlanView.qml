@@ -180,6 +180,13 @@ Item {
         Component.onCompleted: {
             _planMasterController.start()
             _missionController.setCurrentPlanViewSeqNum(0, true)
+            
+            // 检查MissionDatabase是否可用
+            if (MissionDatabase) {
+                console.log("PlanView: MissionDatabase对象可用")
+            } else {
+                console.error("PlanView: MissionDatabase对象不可用")
+            }
         }
 
         onPromptForPlanUsageOnVehicleChange: {
@@ -265,6 +272,8 @@ Item {
         }
     }
 
+    // 移除防重复处理的变量和Timer，改为使用正确的信号
+    
     Connections {
         target: _missionController
 
@@ -273,6 +282,82 @@ Item {
                 mapFitFunctions.fitMapViewportToMissionItems()
             }
             _missionController.setCurrentPlanViewSeqNum(0, true)
+        }
+    }
+
+    // 监听真正的初始plan下载完成信号
+    Connections {
+        target: _planMasterController.managerVehicle
+        
+        function onInitialPlanRequestCompleteChanged(completed) {
+            if (completed && MissionDatabase && _visualItems) {
+                console.log("PlanView: 初始plan下载完成，开始处理下载的航线...")
+                MissionDatabase.handleDownloadedRoute(_visualItems)
+            }
+        }
+    }
+
+    // 监听managerVehicle变化，确保连接到正确的vehicle
+    Connections {
+        target: _planMasterController
+        
+        function onManagerVehicleChanged(managerVehicle) {
+            if (managerVehicle) {
+                console.log("PlanView: managerVehicle已连接，准备监听plan下载完成信号")
+            } else {
+                console.log("PlanView: managerVehicle已断开")
+            }
+        }
+    }
+
+    // 连接到MissionDatabase的信号
+    Connections {
+        target: MissionDatabase
+        
+        function onNeedNewRouteName(visualItems) {
+            console.log("PlanView: 收到需要新航线名称信号，显示对话框")
+            showNewRouteDialog(visualItems)
+        }
+    }
+
+    // 显示新航线对话框的函数
+    function showNewRouteDialog(visualItems) {
+        console.log("PlanView: 显示新航线对话框")
+        
+        var component = Qt.createComponent("qrc:/Custom/NewRouteDialog.qml")
+        if (component.status === Component.Ready) {
+            var dialog = component.createObject(mainWindow, {
+                "visualItems": visualItems
+            })
+            if (dialog) {
+                console.log("PlanView: 新航线对话框创建成功")
+                
+                // 连接对话框关闭信号，重置处理标志
+                dialog.accepted.connect(function() {
+                    console.log("PlanView: 新航线对话框已接受")
+                })
+                dialog.rejected.connect(function() {
+                    console.log("PlanView: 新航线对话框已取消")
+                })
+                
+                dialog.open()
+            } else {
+                console.error("PlanView: 无法创建新航线对话框对象")
+                mainWindow.showMessageDialog(qsTr("错误"), qsTr("无法创建新航线对话框"))
+            }
+        } else if (component.status === Component.Loading) {
+            console.log("PlanView: 新航线对话框组件正在加载...")
+            component.statusChanged.connect(function() {
+                if (component.status === Component.Ready) {
+                    showNewRouteDialog(visualItems)
+                } else if (component.status === Component.Error) {
+                    console.error("PlanView: 新航线对话框组件加载失败:", component.errorString())
+                    mainWindow.showMessageDialog(qsTr("错误"), qsTr("无法加载新航线对话框: ") + component.errorString())
+                }
+            })
+        } else {
+            console.error("PlanView: 新航线对话框组件错误:", component.errorString())
+            mainWindow.showMessageDialog(qsTr("错误"), qsTr("无法加载新航线对话框: ") + component.errorString())
         }
     }
 
@@ -668,11 +753,22 @@ Item {
                         dropPanelComponent: centerMapDropPanel
                     },
                     ToolStripAction {
-                        text:               qsTr("数据库")
-                        iconSource:         "/qmlimages/Database.svg"
+                        text:               qsTr("保存航线")
+                        iconSource:         "/qmlimages/MapSyncChanged.svg"
                         enabled:            true
                         visible:            true
-                        dropPanelComponent: databaseDropPanel
+                        onTriggered: {
+                            saveAsNewRoute()
+                        }
+                    },
+                    ToolStripAction {
+                        text:               qsTr("航迹列表")
+                        iconSource:         "/qmlimages/MapAddMission.svg"
+                        enabled:            true
+                        visible:            true
+                        onTriggered: {
+                            showRouteListDialog()
+                        }
                     }
                 ]
             }
@@ -1186,143 +1282,7 @@ Item {
         }
     }
 
-    //-----------------------------------------------------------
-    // Database Drop Panel Component
-    Component {
-        id: databaseDropPanel
 
-        ColumnLayout {
-            id:         databaseColumnHolder
-            spacing:    _margin
-            width:      ScreenTools.defaultFontPixelWidth * 25
-
-            QGCLabel {
-                id:                 databaseHeaderLabel
-                Layout.fillWidth:   true
-                text:               qsTr("数据库管理")
-                font.pointSize:     ScreenTools.mediumFontPointSize
-                horizontalAlignment: Text.AlignHCenter
-            }
-
-            // 显示当前航线状态
-            QGCLabel {
-                Layout.fillWidth:   true
-                text:               _currentRouteUuid !== "" ? 
-                                    qsTr("当前航线: %1").arg(_currentRouteUuid.substring(0, 8) + "...") : 
-                                    qsTr("当前航线: 无")
-                font.pointSize:     ScreenTools.smallFontPointSize
-                horizontalAlignment: Text.AlignHCenter
-                color:              _currentRouteUuid !== "" ? qgcPal.text : qgcPal.warningText
-            }
-
-            Rectangle {
-                Layout.fillWidth:   true
-                height:             1
-                color:              qgcPal.text
-                opacity:            0.3
-            }
-
-            SectionHeader {
-                id:                 missionDataSection
-                Layout.fillWidth:   true
-                text:               qsTr("航线数据")
-                showSpacer:         false
-            }
-
-            GridLayout {
-                columns:            2
-                columnSpacing:      _margin
-                rowSpacing:         _margin / 2
-                Layout.fillWidth:   true
-                visible:            missionDataSection.checked
-
-                QGCButton {
-                    text:               qsTr("更新当前航线")
-                    Layout.fillWidth:   true
-                    Layout.columnSpan:  2
-                    enabled:            _currentRouteUuid !== ""  // 只有存在当前航线 UUID 时才可点击
-                    onClicked: {
-                        console.log("更新当前航线按钮被点击，当前航线UUID:", _currentRouteUuid)
-                        dropPanel.hide()
-                        updateCurrentRoute()
-                    }
-                }
-
-                QGCButton {
-                    text:               qsTr("保存为新航线")
-                    Layout.fillWidth:   true
-                    Layout.columnSpan:  2
-                    onClicked: {
-                        console.log("保存为新航线按钮被点击")
-                        dropPanel.hide()
-                        saveAsNewRoute()
-                    }
-                }
-
-                QGCButton {
-                    text:               qsTr("航迹列表")
-                    Layout.fillWidth:   true
-                    Layout.columnSpan:  2
-                    onClicked: {
-                        console.log("航迹列表按钮被点击")
-                        dropPanel.hide()
-                        showRouteListDialog()
-                    }
-                }
-            }
-
-            SectionHeader {
-                id:                 statisticsSection
-                Layout.fillWidth:   true
-                text:               qsTr("任务数据")
-                showSpacer:         false
-            }
-
-            GridLayout {
-                columns:            1
-                columnSpacing:      _margin
-                rowSpacing:         _margin / 2
-                Layout.fillWidth:   true
-                visible:            statisticsSection.checked
-
-                // 任务列表按钮已移动到FlyViewCustomLayer.qml
-                // QGCButton {
-                //     text:               qsTr("任务列表")
-                //     Layout.fillWidth:   true
-                //     onClicked: {
-                //         console.log("任务列表按钮被点击")
-                //         dropPanel.hide()
-                //         showMissionListDialog()
-                //     }
-                // }
-            }
-
-            SectionHeader {
-                id:                 settingsSection
-                Layout.fillWidth:   true
-                text:               qsTr("数据库设置")
-                showSpacer:         false
-            }
-
-            GridLayout {
-                columns:            1
-                columnSpacing:      _margin
-                rowSpacing:         _margin / 2
-                Layout.fillWidth:   true
-                visible:            settingsSection.checked
-
-                QGCButton {
-                    text:               qsTr("清空数据库")
-                    Layout.fillWidth:   true
-                    onClicked: {
-                        console.log("清空数据库按钮被点击")
-                        dropPanel.hide()
-                        showClearDatabaseConfirmDialog()
-                    }
-                }
-            }
-        }
-    }
 
     Connections {
         target: utmspEditor
@@ -1365,229 +1325,35 @@ Item {
         }
     }
 
-    // 清空数据库确认对话框
-    function showClearDatabaseConfirmDialog() {
-        mainWindow.showMessageDialog(
-            qsTr("清空数据库"),
-            qsTr("⚠️ 警告：此操作将永久删除所有数据库中的数据！\n\n包括：\n• 所有航线记录\n• 所有任务记录\n• 所有成果记录\n\n此操作不可恢复，确定要继续吗？"),
-            Dialog.Yes | Dialog.No,
-            function() {
-                // 用户确认清空数据库
-                clearDatabase()
-            }
-        )
-    }
-
-    // 生成 UUID 的函数 - 直接使用 MissionDatabase 的方法
-    function generateUuid() {
-        return MissionDatabase.generateUuid()
-    }
-
-    // 提取当前航线数据的公共函数 - 完整提取所有航点参数
-    function extractCurrentRouteData() {
-        var routeData = {
-            waypointsArray: [],
-            waypointCount: 0,
-            totalDistance: 0.0,
-            estimatedDuration: 0,
-            waypointsJson: ""
-        }
-        
-        // 1. 从 _missionController.visualItems 获取当前航点数据
-        for (var i = 0; i < _missionController.visualItems.count; i++) {
-            var item = _missionController.visualItems.get(i)
-            
-            // 只处理指定坐标的项目（跳过任务设置项MissionSettingsItem）
-            if (item.specifiesCoordinate && i > 0) {  // i > 0 跳过第0个MissionSettingsItem
-                var waypointObj = {
-                    "longitude": item.coordinate.longitude,
-                    "latitude": item.coordinate.latitude,
-                    "altitude": item.altitude ? item.altitude.rawValue : 0,
-                    "command": item.command ? item.command : 16,  // MAV_CMD 命令类型
-                    "sequence": item.sequenceNumber,
-                    "frame": item.missionItem ? item.missionItem.frame() : 3,  // MAV_FRAME 坐标系
-                    "autocontinue": item.missionItem ? item.missionItem.autoContinue() : true,
-                    "current": item.isCurrentItem ? item.isCurrentItem : false
-                }
-                
-                // 提取MAVLink参数 - 处理不同类型的航点
-                if (item.missionItem) {
-                    waypointObj.param1 = item.missionItem.param1()
-                    waypointObj.param2 = item.missionItem.param2()
-                    waypointObj.param3 = item.missionItem.param3()
-                    waypointObj.param4 = item.missionItem.param4()
-                    waypointObj.param5 = item.missionItem.param5()  // 通常是纬度
-                    waypointObj.param6 = item.missionItem.param6()  // 通常是经度
-                    waypointObj.param7 = item.missionItem.param7()  // 通常是高度
-                } else {
-                    // 如果没有missionItem，使用默认值
-                    waypointObj.param1 = 0
-                    waypointObj.param2 = 0
-                    waypointObj.param3 = 0
-                    waypointObj.param4 = 0
-                    waypointObj.param5 = item.coordinate.latitude
-                    waypointObj.param6 = item.coordinate.longitude
-                    waypointObj.param7 = waypointObj.altitude
-                }
-                
-                // 特殊处理TakeoffMissionItem
-                if (item.isTakeoffItem) {
-                    waypointObj.itemType = "TakeoffMissionItem"
-                    // 起飞点可能有特殊的launch坐标
-                    if (item.launchCoordinate) {
-                        waypointObj.launchLatitude = item.launchCoordinate.latitude
-                        waypointObj.launchLongitude = item.launchCoordinate.longitude
-                        waypointObj.launchAltitude = item.launchCoordinate.altitude
-                    }
-                    if (item.launchTakeoffAtSameLocation !== undefined) {
-                        waypointObj.launchTakeoffAtSameLocation = item.launchTakeoffAtSameLocation
-                    }
-                } else {
-                    waypointObj.itemType = "SimpleMissionItem"
-                }
-                
-                // 高度模式信息
-                if (item.altitudeMode !== undefined) {
-                    waypointObj.altitudeMode = item.altitudeMode
-                }
-                
-                routeData.waypointsArray.push(waypointObj)
-                routeData.waypointCount++
-                
-                console.log("航点", i, "类型:", waypointObj.itemType, "坐标:", waypointObj.longitude, waypointObj.latitude, waypointObj.altitude, "cmd:", waypointObj.command)
-            }
-        }
-        
-        // 2. 计算航线长度（简化计算，实际应该使用地理距离）
-        if (routeData.waypointsArray.length > 1) {
-            for (var j = 1; j < routeData.waypointsArray.length; j++) {
-                var prev = routeData.waypointsArray[j-1]
-                var curr = routeData.waypointsArray[j]
-                // 简化的距离计算（实际项目中应该使用更精确的地理距离计算）
-                var deltaLat = curr.latitude - prev.latitude
-                var deltaLon = curr.longitude - prev.longitude
-                var segmentDistance = Math.sqrt(deltaLat*deltaLat + deltaLon*deltaLon) * 111000 // 大约转换为米
-                routeData.totalDistance += segmentDistance
-            }
-        }
-        
-        // 3. 估算飞行时间（假设平均速度为 15 m/s）
-        var defaultSpeed = 15.0 // 默认飞行速度 m/s
-        routeData.estimatedDuration = routeData.totalDistance > 0 ? Math.ceil(routeData.totalDistance / defaultSpeed) : 0
-        
-        // 4. 创建航点JSON字符串
-        routeData.waypointsJson = JSON.stringify(routeData.waypointsArray)
-        
-        return routeData
-    }
-
-    // 更新当前航线
-    function updateCurrentRoute() {
-        if (_currentRouteUuid === "") {
-            console.log("错误：当前航线UUID为空，无法更新")
-            mainWindow.showMessageDialog(
-                qsTr("更新失败"),
-                qsTr("当前没有选择航线，无法更新。\n\n请先保存为新航线。")
-            )
-            return
-        }
-        
-        console.log("开始更新当前航线，UUID:", _currentRouteUuid)
-        
-        // 提取当前航线数据
-        var routeData = extractCurrentRouteData()
-        
-        // 调用数据库更新方法
-        var routeName = "飞行任务02658635"
-        var success = MissionDatabase.updateRoute(
-            _currentRouteUuid,
-            routeName,
-            routeData.waypointCount,
-            routeData.totalDistance,
-            routeData.estimatedDuration,
-            routeData.waypointsJson
-        )
-        
-        if (success) {
-            console.log("航线更新成功！")
-            console.log("- UUID:", _currentRouteUuid)
-            console.log("- 名称:", routeName)
-            console.log("- 航点数量:", routeData.waypointCount)
-            console.log("- 航线长度:", routeData.totalDistance.toFixed(2), "米")
-            console.log("- 估算时长:", routeData.estimatedDuration, "秒")
-            
-            // 同步到MissionDatabase
-            MissionDatabase.setCurrentRouteUuid(_currentRouteUuid)
-            
-            mainWindow.showMessageDialog(
-                qsTr("更新成功"),
-                qsTr("航线已更新！\n\n") +
-                qsTr("航线名称: %1\n").arg(routeName) +
-                qsTr("航点数量: %1\n").arg(routeData.waypointCount) +
-                qsTr("航线长度: %1 米\n").arg(routeData.totalDistance.toFixed(2)) +
-                qsTr("估算时长: %1 秒\n\n").arg(routeData.estimatedDuration) +
-                qsTr("UUID: %1").arg(_currentRouteUuid)
-            )
-        } else {
-            console.log("航线更新失败！")
-            mainWindow.showMessageDialog(
-                qsTr("更新失败"),
-                qsTr("航线更新失败！\n\n请检查数据库连接状态和航线UUID有效性。")
-            )
-        }
-    }
-
-    // 保存为新航线
+    // 保存为新航线 - 使用简化的C++接口
     function saveAsNewRoute() {
-        // 生成新的 UUID
-        var newUuid = generateUuid()
-        _currentRouteUuid = newUuid
+        // 生成航线名称
+        var routeName = "飞行任务" + new Date().getTime().toString().slice(-8)
         
-        console.log("生成新的航线UUID:", _currentRouteUuid)
+        console.log("开始保存航线:", routeName)
         
-        // 立即同步到MissionDatabase
-        MissionDatabase.setCurrentRouteUuid(_currentRouteUuid)
+        // 调试：打印visualItems的详细信息
+        console.log("_missionController.visualItems.count:", _missionController.visualItems.count)
         
-        // 移除信号触发相关代码
-        // currentRouteUuidChanged(_currentRouteUuid) // 移除此行
-        
-        // 提取当前航线数据
-        var routeData = extractCurrentRouteData()
-        
-        // 调用数据库保存方法
-        var routeName = "飞行任务02658635"
-        var success = MissionDatabase.addRoute(
-            _currentRouteUuid,
-            routeName,
-            routeData.waypointCount,
-            routeData.totalDistance,
-            routeData.estimatedDuration,
-            routeData.waypointsJson
-        )
+        // 调用新的简化接口，直接传入visualItems
+        var success = MissionDatabase.addRoute(routeName, _missionController.visualItems)
         
         if (success) {
-            console.log("航线保存成功！")
-            console.log("- UUID:", _currentRouteUuid)
-            console.log("- 名称:", routeName)
-            console.log("- 航点数量:", routeData.waypointCount)
-            console.log("- 航线长度:", routeData.totalDistance.toFixed(2), "米")
-            console.log("- 估算时长:", routeData.estimatedDuration, "秒")
+            // 获取当前航线UUID（由C++方法设置）
+            _currentRouteUuid = MissionDatabase.getCurrentRouteUuid()
             
-            // 移除重复的信号触发，因为已经在设置UUID时触发了
-            // currentRouteUuidChanged(_currentRouteUuid)
+            console.log("航线保存成功！")
+            console.log("- 航线名称:", routeName)
+            console.log("- UUID:", _currentRouteUuid)
             
             mainWindow.showMessageDialog(
                 qsTr("保存成功"),
                 qsTr("新航线已创建！\n\n") +
                 qsTr("航线名称: %1\n").arg(routeName) +
-                qsTr("航点数量: %1\n").arg(routeData.waypointCount) +
-                qsTr("航线长度: %1 米\n").arg(routeData.totalDistance.toFixed(2)) +
-                qsTr("估算时长: %1 秒\n\n").arg(routeData.estimatedDuration) +
                 qsTr("UUID: %1").arg(_currentRouteUuid)
             )
         } else {
             console.log("航线保存失败！")
-            _currentRouteUuid = "" // 重置UUID
             mainWindow.showMessageDialog(
                 qsTr("保存失败"),
                 qsTr("航线保存失败！\n\n请检查数据库连接状态。")
@@ -1595,51 +1361,10 @@ Item {
         }
     }
 
-    // 执行清空数据库操作
-    function clearDatabase() {
-        console.log("开始清空数据库...")
-        
-        if (typeof MissionDatabase !== 'undefined' && MissionDatabase) {
-            try {
-                var success = MissionDatabase.clearAllData()
-                if (success) {
-                    console.log("数据库清空成功")
-                    // 清空数据库后重置当前航线UUID
-                    _currentRouteUuid = ""
-                    // 同步到MissionDatabase
-                    MissionDatabase.clearCurrentRouteUuid()
-                    // 移除信号触发相关代码
-                    // currentRouteUuidChanged(_currentRouteUuid)
-                    mainWindow.showMessageDialog(
-                        qsTr("清空完成"),
-                        qsTr("✅ 数据库已成功清空！\n\n所有航线、任务和成果记录已被删除。")
-                    )
-                } else {
-                    console.log("数据库清空失败")
-                    mainWindow.showMessageDialog(
-                        qsTr("清空失败"),
-                        qsTr("❌ 数据库清空失败！\n\n请检查数据库连接状态或查看日志获取详细信息。")
-                    )
-                }
-            } catch (error) {
-                console.log("清空数据库时发生错误:", error)
-                mainWindow.showMessageDialog(
-                    qsTr("操作异常"),
-                    qsTr("❌ 清空数据库时发生异常：\n\n%1").arg(error.toString())
-                )
-            }
-        } else {
-            console.log("MissionDatabase 不可用")
-            mainWindow.showMessageDialog(
-                qsTr("数据库不可用"),
-                qsTr("❌ 无法访问数据库！\n\n请确保数据库模块已正确加载。")
-            )
-        }
-    }
+
     
     // 从数据库加载航线数据到地图 - 模拟QGC从PX4下载航线的底层逻辑
     function loadRouteFromDatabase(routeUuid, waypoints) {
-        console.log("开始从数据库加载航线到地图")
         console.log("航线UUID:", routeUuid)
         console.log("航点数量:", waypoints.length)
         
@@ -1671,9 +1396,7 @@ Item {
             // 3. 逐个处理航点数据，直接创建对应的visual item
             for (var i = 0; i < waypoints.length; i++) {
                 var waypoint = waypoints[i]
-                
-                console.log("处理航点", i, "cmd:", waypoint.command, "坐标:", waypoint.latitude, waypoint.longitude, waypoint.altitude)
-                
+                      
                 // 创建坐标对象
                 var coordinate = QtPositioning.coordinate(
                     waypoint.latitude,
@@ -1743,15 +1466,6 @@ Item {
                             visualItem.missionItem.setFrame(waypoint.frame || 3)
                             visualItem.missionItem.setAutoContinue(waypoint.autocontinue !== undefined ? waypoint.autocontinue : true)
                         }
-                        
-                        console.log("TakeoffMissionItem 坐标设置完成:", coordinate.latitude, coordinate.longitude, coordinate.altitude)
-                        
-                        // 验证坐标是否正确设置
-                        console.log("验证 TakeoffMissionItem 最终坐标:", visualItem.coordinate.latitude, visualItem.coordinate.longitude, visualItem.coordinate.altitude)
-                        if (visualItem.launchCoordinate) {
-                            console.log("验证 Launch 坐标:", visualItem.launchCoordinate.latitude, visualItem.launchCoordinate.longitude, visualItem.launchCoordinate.altitude)
-                        }
-                        console.log("launchTakeoffAtSameLocation:", visualItem.launchTakeoffAtSameLocation)
                     } else {
                         console.log("创建TakeoffMissionItem失败")
                     }
@@ -1763,9 +1477,7 @@ Item {
                         false  // 不设为当前项
                     )
                     
-                    if (visualItem) {
-                        console.log("创建SimpleMissionItem成功")
-                        
+                    if (visualItem) { 
                         // 设置命令类型
                         visualItem.command = command
                         
@@ -1788,8 +1500,6 @@ Item {
                         if (waypoint.altitudeMode !== undefined && visualItem.setAltitudeMode) {
                             visualItem.setAltitudeMode(waypoint.altitudeMode)
                         }
-                        
-                        console.log("SimpleMissionItem 坐标设置完成:", coordinate.latitude, coordinate.longitude, coordinate.altitude)
                     } else {
                         console.log("创建SimpleMissionItem失败")
                     }
@@ -1805,23 +1515,6 @@ Item {
             }
             
             console.log("航线加载完成！总共", _missionController.visualItems.count, "个项目")
-            
-            // 打印所有项目的坐标信息进行调试
-            for (var j = 0; j < _missionController.visualItems.count; j++) {
-                var item = _missionController.visualItems.get(j)
-                if (item.specifiesCoordinate) {
-                    console.log("项目", j, "类型:", item.commandName, "坐标:", item.coordinate.latitude, item.coordinate.longitude, item.coordinate.altitude)
-                }
-            }
-            
-            // 显示成功消息
-            mainWindow.showMessageDialog(
-                qsTr("加载成功"),
-                qsTr("航线已成功加载到地图！\n\n") +
-                qsTr("航线UUID: %1\n").arg(routeUuid) +
-                qsTr("航点数量: %1\n").arg(waypoints.length) +
-                qsTr("总项目数: %1").arg(_missionController.visualItems.count)
-            )
             
         } catch (error) {
             console.log("加载航线时发生错误:", error)

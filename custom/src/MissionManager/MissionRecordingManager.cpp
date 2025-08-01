@@ -87,3 +87,4 @@ void MissionRecordingManager::_setIsRecording(bool recording)
         emit isRecordingChanged();
     }
 }
+ 

@@ -1,6 +1,13 @@
 #include "MissionDatabase.h"
 #include <QtCore/QDebug>
 #include <QtCore/QFileInfo>
+#include <QtCore/QJsonArray>
+#include <QtCore/QJsonObject>
+#include <QtCore/QJsonDocument>
+#include <QtCore/QMetaObject>
+#include <QtCore/QCryptographicHash>
+#include <QtPositioning/QGeoCoordinate>
+#include <cmath>
 
 // 表创建SQL定义
 const QString MissionDatabase::_createRoutesTableSQL = 
@@ -175,6 +182,172 @@ bool MissionDatabase::addRoute(const QString &uuid, const QString &name, int way
     return true;
 }
 
+bool MissionDatabase::addRoute(const QString &routeName, const QVariant& visualItems)
+{
+    if (!_isConnected) return false;
+    
+    // 生成新的UUID
+    QString newUuid = QUuid::createUuid().toString();
+    
+    // visualItems是一个QObject*（QQmlListModel），需要通过方法访问
+    QObject* visualItemsObj = visualItems.value<QObject*>();
+    if (!visualItemsObj) {
+        return false;
+    }
+    
+    // 获取count属性
+    QVariant countVariant = visualItemsObj->property("count");
+    int itemCount = countVariant.toInt();
+    
+    QJsonArray waypointsArray;
+    int waypointCount = 0;
+    double totalDistance = 0.0;
+    QObject* previousItem = nullptr;
+    
+    // 遍历所有visualItems
+    for (int i = 0; i < itemCount; i++) {
+        // 直接获取QObject*类型的item
+        QObject* item = nullptr;
+        
+        // QmlObjectListModel::get(int)返回QObject*，不是QVariant
+        if (!QMetaObject::invokeMethod(visualItemsObj, "get", Q_RETURN_ARG(QObject*, item), Q_ARG(int, i)) || !item) {
+            continue;
+        }
+        
+        // 检查是否指定坐标且不是第一个项目（MissionSettingsItem）
+        QVariant specifiesCoordinate = item->property("specifiesCoordinate");
+        QVariant sequenceNumber = item->property("sequenceNumber");
+        
+        if (specifiesCoordinate.toBool() && sequenceNumber.toInt() > 0) {
+            
+            QJsonObject waypointObj;
+            
+            // 获取坐标数据 - 使用QGeoCoordinate类型
+            QVariant coordinateVariant = item->property("coordinate");
+            QGeoCoordinate coordinate = coordinateVariant.value<QGeoCoordinate>();
+            
+            if (!coordinate.isValid()) {
+                continue;
+            }
+            
+            waypointObj["latitude"] = coordinate.latitude();
+            waypointObj["longitude"] = coordinate.longitude();
+            waypointObj["altitude"] = coordinate.altitude();
+            
+            // 获取基本属性
+            waypointObj["sequence"] = sequenceNumber.toInt();
+            waypointObj["command"] = item->property("command").toInt();
+            
+            // 获取高度信息
+            QVariant altitudeVariant = item->property("altitude");
+            QObject* altitudeObj = altitudeVariant.value<QObject*>();
+            if (altitudeObj) {
+                waypointObj["altitude"] = altitudeObj->property("rawValue").toDouble();
+            }
+            
+            // 获取MAVLink参数
+            QVariant missionItemVariant = item->property("missionItem");
+            QObject* missionItem = missionItemVariant.value<QObject*>();
+            if (missionItem) {
+                // 通过QMetaObject调用方法获取参数
+                QVariant param1, param2, param3, param4, param5, param6, param7;
+                QMetaObject::invokeMethod(missionItem, "param1", Q_RETURN_ARG(QVariant, param1));
+                QMetaObject::invokeMethod(missionItem, "param2", Q_RETURN_ARG(QVariant, param2));
+                QMetaObject::invokeMethod(missionItem, "param3", Q_RETURN_ARG(QVariant, param3));
+                QMetaObject::invokeMethod(missionItem, "param4", Q_RETURN_ARG(QVariant, param4));
+                QMetaObject::invokeMethod(missionItem, "param5", Q_RETURN_ARG(QVariant, param5));
+                QMetaObject::invokeMethod(missionItem, "param6", Q_RETURN_ARG(QVariant, param6));
+                QMetaObject::invokeMethod(missionItem, "param7", Q_RETURN_ARG(QVariant, param7));
+                
+                waypointObj["param1"] = param1.toDouble();
+                waypointObj["param2"] = param2.toDouble();
+                waypointObj["param3"] = param3.toDouble();
+                waypointObj["param4"] = param4.toDouble();
+                waypointObj["param5"] = param5.toDouble();
+                waypointObj["param6"] = param6.toDouble();
+                waypointObj["param7"] = param7.toDouble();
+                
+                // 获取frame和autocontinue
+                QVariant frame, autoContinue;
+                QMetaObject::invokeMethod(missionItem, "frame", Q_RETURN_ARG(QVariant, frame));
+                QMetaObject::invokeMethod(missionItem, "autoContinue", Q_RETURN_ARG(QVariant, autoContinue));
+                waypointObj["frame"] = frame.toInt();
+                waypointObj["autocontinue"] = autoContinue.toBool();
+            } else {
+                // 默认值
+                waypointObj["param1"] = 0.0;
+                waypointObj["param2"] = 0.0;
+                waypointObj["param3"] = 0.0;
+                waypointObj["param4"] = 0.0;
+                waypointObj["param5"] = waypointObj["latitude"].toDouble();
+                waypointObj["param6"] = waypointObj["longitude"].toDouble();
+                waypointObj["param7"] = waypointObj["altitude"].toDouble();
+                waypointObj["frame"] = 3;
+                waypointObj["autocontinue"] = true;
+            }
+            
+            // 检查是否为起飞项目
+            QVariant isTakeoffItem = item->property("isTakeoffItem");
+            if (isTakeoffItem.toBool()) {
+                waypointObj["itemType"] = "TakeoffMissionItem";
+                
+                // 获取launch坐标
+                QVariant launchCoordinate = item->property("launchCoordinate");
+                QObject* launchCoord = launchCoordinate.value<QObject*>();
+                if (launchCoord) {
+                    waypointObj["launchLatitude"] = launchCoord->property("latitude").toDouble();
+                    waypointObj["launchLongitude"] = launchCoord->property("longitude").toDouble();
+                    waypointObj["launchAltitude"] = launchCoord->property("altitude").toDouble();
+                }
+                
+                QVariant launchTakeoffAtSameLocation = item->property("launchTakeoffAtSameLocation");
+                waypointObj["launchTakeoffAtSameLocation"] = launchTakeoffAtSameLocation.toBool();
+            } else {
+                waypointObj["itemType"] = "SimpleMissionItem";
+            }
+            
+            // 获取高度模式
+            QVariant altitudeMode = item->property("altitudeMode");
+            if (altitudeMode.isValid()) {
+                waypointObj["altitudeMode"] = altitudeMode.toInt();
+            }
+            
+            waypointsArray.append(waypointObj);
+            waypointCount++;
+            
+            // 计算距离（使用QGeoCoordinate内置的距离计算）
+            if (previousItem) {
+                QVariant prevCoordinateVariant = previousItem->property("coordinate");
+                QGeoCoordinate prevCoordinate = prevCoordinateVariant.value<QGeoCoordinate>();
+                if (prevCoordinate.isValid() && coordinate.isValid()) {
+                    // 使用QGeoCoordinate的distanceTo方法计算精确的地理距离
+                    double segmentDistance = prevCoordinate.distanceTo(coordinate);
+                    totalDistance += segmentDistance;
+                }
+            }
+            
+            previousItem = item;
+        }
+    }
+    
+    // 估算飞行时间（假设平均速度为15 m/s）
+    double defaultSpeed = 15.0;
+    int estimatedDuration = totalDistance > 0 ? static_cast<int>(ceil(totalDistance / defaultSpeed)) : 0;
+    
+        // 生成航点JSON字符串
+    QString waypointsJson = QJsonDocument(waypointsArray).toJson(QJsonDocument::Compact);
+    
+    // 调用现有的addRoute方法
+    bool success = addRoute(newUuid, routeName, waypointCount, totalDistance, estimatedDuration, waypointsJson);
+    
+    if (success) {
+        // 设置为当前航线
+        setCurrentRouteUuid(newUuid);
+    }
+    
+    return success;
+}
+
 bool MissionDatabase::updateRoute(const QString &uuid, const QString &name, int waypointCount, 
                                  double routeLength, int estimatedDuration, const QString &waypoints)
 {
@@ -266,6 +439,226 @@ QJsonArray MissionDatabase::getAllRoutes()
     }
     
     return result;
+}
+
+
+
+QString MissionDatabase::checkRouteUnique(const QVariant& visualItems)
+{
+    if (!_isConnected) return QString(); // 如果数据库未连接，返回空
+    
+    qDebug() << "=== checkRouteUnique: 开始检查航线唯一性 ===";
+    
+    // visualItems是一个QObject*（QQmlListModel），需要通过方法访问
+    QObject* visualItemsObj = visualItems.value<QObject*>();
+    if (!visualItemsObj) {
+        qDebug() << "checkRouteUnique: visualItemsObj为空";
+        return QString();
+    }
+    
+    // 获取count属性
+    QVariant countVariant = visualItemsObj->property("count");
+    int itemCount = countVariant.toInt();
+    qDebug() << "checkRouteUnique: visualItems count =" << itemCount;
+    
+    // 创建规范化的航点数组用于哈希比较
+    QJsonArray normalizedWaypoints;
+    
+    // 遍历所有visualItems，使用与addRoute相同的逻辑
+    for (int i = 0; i < itemCount; i++) {
+        // 直接获取QObject*类型的item
+        QObject* item = nullptr;
+        
+        if (!QMetaObject::invokeMethod(visualItemsObj, "get", Q_RETURN_ARG(QObject*, item), Q_ARG(int, i)) || !item) {
+            continue;
+        }
+        
+        // 检查是否指定坐标且不是第一个项目（MissionSettingsItem）
+        QVariant specifiesCoordinate = item->property("specifiesCoordinate");
+        QVariant sequenceNumber = item->property("sequenceNumber");
+        
+        qDebug() << "checkRouteUnique: item" << i << "specifiesCoordinate:" << specifiesCoordinate.toBool() 
+                 << "sequenceNumber:" << sequenceNumber.toInt();
+        
+        if (specifiesCoordinate.toBool() && sequenceNumber.toInt() > 0) {
+            // 获取坐标数据 - 使用QGeoCoordinate类型
+            QVariant coordinateVariant = item->property("coordinate");
+            QGeoCoordinate coordinate = coordinateVariant.value<QGeoCoordinate>();
+            
+            if (!coordinate.isValid()) {
+                qDebug() << "checkRouteUnique: item" << i << "坐标无效";
+                continue;
+            }
+            
+            QJsonObject normalizedWaypoint;
+            
+            // 获取altitude - 使用与addRoute相同的逻辑
+            double altitudeValue = coordinate.altitude();
+            
+            // 获取高度信息（与addRoute保持一致）
+            QVariant altitudeVariant = item->property("altitude");
+            QObject* altitudeObj = altitudeVariant.value<QObject*>();
+            if (altitudeObj) {
+                altitudeValue = altitudeObj->property("rawValue").toDouble();
+                qDebug() << "checkRouteUnique: item" << i << "使用altitude.rawValue:" << altitudeValue;
+            } else {
+                qDebug() << "checkRouteUnique: item" << i << "使用coordinate.altitude():" << altitudeValue;
+            }
+            
+            // 使用与addRoute相同的字段名和精度，但规范化为字符串进行哈希比较
+            normalizedWaypoint["latitude"] = QString::number(coordinate.latitude(), 'f', 8);
+            normalizedWaypoint["longitude"] = QString::number(coordinate.longitude(), 'f', 8);
+            normalizedWaypoint["altitude"] = QString::number(altitudeValue, 'f', 2);
+            normalizedWaypoint["sequence"] = sequenceNumber.toInt();
+            normalizedWaypoint["command"] = item->property("command").toInt();
+            
+            qDebug() << "checkRouteUnique: item" << i << "最终altitude:" << altitudeValue 
+                     << "坐标:" << coordinate.latitude() << coordinate.longitude()
+                     << "命令:" << item->property("command").toInt();
+            
+            // 获取MAVLink参数（使用与addRoute相同的逻辑）
+            QVariant missionItemVariant = item->property("missionItem");
+            QObject* missionItem = missionItemVariant.value<QObject*>();
+            if (missionItem) {
+                QVariant param1, param2, param3, param4;
+                QMetaObject::invokeMethod(missionItem, "param1", Q_RETURN_ARG(QVariant, param1));
+                QMetaObject::invokeMethod(missionItem, "param2", Q_RETURN_ARG(QVariant, param2));
+                QMetaObject::invokeMethod(missionItem, "param3", Q_RETURN_ARG(QVariant, param3));
+                QMetaObject::invokeMethod(missionItem, "param4", Q_RETURN_ARG(QVariant, param4));
+                
+                // 规范化参数（精度限制，避免浮点误差）
+                normalizedWaypoint["param1"] = QString::number(param1.toDouble(), 'f', 6);
+                normalizedWaypoint["param2"] = QString::number(param2.toDouble(), 'f', 6);
+                normalizedWaypoint["param3"] = QString::number(param3.toDouble(), 'f', 6);
+                normalizedWaypoint["param4"] = QString::number(param4.toDouble(), 'f', 6);
+                
+                qDebug() << "checkRouteUnique: item" << i << "参数:" << param1.toDouble() << param2.toDouble() << param3.toDouble() << param4.toDouble();
+            } else {
+                // 默认值（与addRoute保持一致）
+                normalizedWaypoint["param1"] = "0.000000";
+                normalizedWaypoint["param2"] = "0.000000";
+                normalizedWaypoint["param3"] = "0.000000";
+                normalizedWaypoint["param4"] = "0.000000";
+                qDebug() << "checkRouteUnique: item" << i << "使用默认参数";
+            }
+            
+            normalizedWaypoints.append(normalizedWaypoint);
+        }
+    }
+    
+    // 生成规范化的JSON字符串并计算哈希
+    QString normalizedJson = QJsonDocument(normalizedWaypoints).toJson(QJsonDocument::Compact);
+    QByteArray inputHash = QCryptographicHash::hash(normalizedJson.toUtf8(), QCryptographicHash::Sha256);
+    QString inputHashHex = inputHash.toHex();
+    
+    qDebug() << "checkRouteUnique: 输入数据JSON:" << normalizedJson;
+    qDebug() << "checkRouteUnique: 输入数据哈希:" << inputHashHex;
+    
+    // 获取数据库中所有航线的航点数据
+    QSqlQuery query(_database);
+    if (!query.exec("SELECT uuid, waypoints FROM routes")) {
+        qDebug() << "checkRouteUnique: 数据库查询失败";
+        return QString(); // 查询失败时返回空
+    }
+    
+    int routeIndex = 0;
+    // 逐一比较每条航线的哈希值
+    while (query.next()) {
+        QString routeUuid = query.value("uuid").toString();
+        QString existingWaypoints = query.value("waypoints").toString();
+        
+        qDebug() << "checkRouteUnique: 检查数据库航线" << routeIndex << "UUID:" << routeUuid;
+        
+        // 解析现有航线的JSON数据并生成相同格式的规范化哈希
+        QJsonParseError error;
+        QJsonDocument doc = QJsonDocument::fromJson(existingWaypoints.toUtf8(), &error);
+        if (error.error != QJsonParseError::NoError) {
+            qDebug() << "checkRouteUnique: 数据库航线" << routeIndex << "JSON解析失败:" << error.errorString();
+            continue;
+        }
+        
+        if (!doc.isArray()) {
+            qDebug() << "checkRouteUnique: 数据库航线" << routeIndex << "不是数组格式";
+            continue;
+        }
+        
+        QJsonArray existingArray = doc.array();
+        QJsonArray existingNormalized;
+        
+        qDebug() << "checkRouteUnique: 数据库航线" << routeIndex << "原始数据:" << existingWaypoints;
+        
+        // 对现有航线生成相同的规范化格式
+        for (const QJsonValue& value : existingArray) {
+            if (!value.isObject()) continue;
+            
+            QJsonObject waypoint = value.toObject();
+            QJsonObject normalized;
+            
+            // 使用相同的字段名和精度
+            if (waypoint.contains("latitude")) normalized["latitude"] = QString::number(waypoint["latitude"].toDouble(), 'f', 8);
+            if (waypoint.contains("longitude")) normalized["longitude"] = QString::number(waypoint["longitude"].toDouble(), 'f', 8);
+            if (waypoint.contains("altitude")) normalized["altitude"] = QString::number(waypoint["altitude"].toDouble(), 'f', 2);
+            if (waypoint.contains("sequence")) normalized["sequence"] = waypoint["sequence"].toInt();
+            if (waypoint.contains("command")) normalized["command"] = waypoint["command"].toInt();
+            
+            // 规范化参数
+            normalized["param1"] = QString::number(waypoint["param1"].toDouble(), 'f', 6);
+            normalized["param2"] = QString::number(waypoint["param2"].toDouble(), 'f', 6);
+            normalized["param3"] = QString::number(waypoint["param3"].toDouble(), 'f', 6);
+            normalized["param4"] = QString::number(waypoint["param4"].toDouble(), 'f', 6);
+            
+            existingNormalized.append(normalized);
+        }
+        
+        // 计算现有航线的哈希值
+        QString existingNormalizedJson = QJsonDocument(existingNormalized).toJson(QJsonDocument::Compact);
+        QByteArray existingHash = QCryptographicHash::hash(existingNormalizedJson.toUtf8(), QCryptographicHash::Sha256);
+        QString existingHashHex = existingHash.toHex();
+        
+        qDebug() << "checkRouteUnique: 数据库航线" << routeIndex << "规范化JSON:" << existingNormalizedJson;
+        qDebug() << "checkRouteUnique: 数据库航线" << routeIndex << "哈希:" << existingHashHex;
+        qDebug() << "checkRouteUnique: 哈希是否匹配:" << (inputHashHex == existingHashHex ? "YES" : "NO");
+        
+        if (inputHashHex == existingHashHex) {
+            qDebug() << "checkRouteUnique: 找到匹配的航线 UUID:" << routeUuid;
+            return routeUuid; // 发现重复，返回匹配的航线UUID
+        }
+        
+        routeIndex++;
+    }
+    
+    qDebug() << "checkRouteUnique: 未找到匹配的航线，返回空字符串";
+    return QString(); // 未发现重复，返回空字符串
+}
+
+void MissionDatabase::handleDownloadedRoute(const QVariant& visualItems)
+{
+    if (!_isConnected) {
+        qWarning() << "MissionDatabase::handleDownloadedRoute: 数据库未连接";
+        return;
+    }
+    
+    qDebug() << "MissionDatabase::handleDownloadedRoute: 开始处理下载的航线";
+    
+    // 检查下载的航线是否与数据库中的航线重复
+    QString matchedRouteUuid = checkRouteUnique(visualItems);
+    
+    if (!matchedRouteUuid.isEmpty()) {
+        // 发现重复航线，设置为当前航线UUID
+        setCurrentRouteUuid(matchedRouteUuid);
+        qDebug() << "检测到重复航线，设置当前航线UUID:" << matchedRouteUuid;
+        
+        // 获取航线信息用于显示
+        QJsonObject routeInfo = getRoute(matchedRouteUuid);
+        if (!routeInfo.isEmpty()) {
+            QString routeName = routeInfo["name"].toString();
+            qDebug() << "关联到现有航线:" << routeName;
+        }
+    } else {
+        // 未发现重复，需要用户输入新航线名称
+        qDebug() << "检测到新航线，发射needNewRouteName信号";
+        emit needNewRouteName(QVariant(visualItems));
+    }
 }
 
 // ==================== 任务表操作 ====================

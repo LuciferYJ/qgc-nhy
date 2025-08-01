@@ -93,7 +93,6 @@ QGCPopupDialog {
     
     // 从数据库加载航线数据到地图
     function loadRouteToMap(routeUuid) {
-        console.log("开始加载航线到地图，UUID:", routeUuid)
         
         if (typeof MissionDatabase === 'undefined' || !MissionDatabase) {
             console.log("MissionDatabase 不可用")
@@ -107,9 +106,6 @@ QGCPopupDialog {
                 console.log("未找到航线数据")
                 return
             }
-            
-            console.log("获取到航线数据:", routeData.name)
-            console.log("航点数据:", routeData.waypoints)
             
             // 解析航点JSON数据
             var waypoints = JSON.parse(routeData.waypoints)
@@ -409,8 +405,6 @@ QGCPopupDialog {
                                 }
                                 
                                 onClicked: {
-                                    console.log("编辑航线:", modelData.name)
-                                    console.log("UUID:", modelData.uuid)
                                     loadRouteToMap(modelData.uuid)
                                     close()
                                 }

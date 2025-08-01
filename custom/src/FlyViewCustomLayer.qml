@@ -375,9 +375,9 @@ Item {
             // 回退到简单的消息对话框
             if (mainWindowRef && mainWindowRef.showMessageDialog) {
                 mainWindowRef.showMessageDialog(qsTr("错误"), qsTr("无法加载任务列表对话框: ") + component.errorString())
+                }
             }
         }
-    }
 
 
 } 

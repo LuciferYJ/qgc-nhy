@@ -57,11 +57,16 @@ public:
 
     Q_INVOKABLE bool addRoute(const QString &uuid, const QString &name, int waypointCount, 
                              double routeLength, int estimatedDuration, const QString &waypoints);
+    Q_INVOKABLE bool addRoute(const QString &routeName, const QVariant& visualItems);
     Q_INVOKABLE bool updateRoute(const QString &uuid, const QString &name, int waypointCount, 
                                double routeLength, int estimatedDuration, const QString &waypoints);
     Q_INVOKABLE bool deleteRoute(const QString &uuid);
     Q_INVOKABLE QJsonObject getRoute(const QString &uuid);
     Q_INVOKABLE QJsonArray getAllRoutes();
+    Q_INVOKABLE QString checkRouteUnique(const QVariant& visualItems);
+
+    // 处理从vehicle下载完成的航线
+    Q_INVOKABLE void handleDownloadedRoute(const QVariant& visualItems);
 
     // 任务表操作 (missions)
     struct MissionInfo {
@@ -102,7 +107,6 @@ public:
     Q_INVOKABLE QJsonArray getResultsByMission(const QString &missionUuid);
 
     // 工具函数
-    Q_INVOKABLE QString generateUuid() { return QUuid::createUuid().toString(QUuid::WithoutBraces); }
     Q_INVOKABLE qint64 getCurrentTimestamp() { return QDateTime::currentSecsSinceEpoch(); }
     Q_INVOKABLE bool clearAllData();  // 清空所有数据表
     Q_INVOKABLE void checkTableStructure();  // 检查表结构
@@ -125,15 +129,19 @@ public:
     
 
 signals:
-    void databaseError(const QString &error);
     void databaseConnected();
     void databaseDisconnected();
+    void databaseError(const QString& errorMessage);
+    
+    // 新增：需要用户输入新航线名称的信号
+    void needNewRouteName(QVariant visualItems);
 
 private:
     bool _connectDatabase();
     void _disconnectDatabase();
     bool _createTables();
     QString _getDatabasePath();
+
 
     
     QSqlDatabase _database;

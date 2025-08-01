@@ -420,18 +420,6 @@ const QVariantList& CustomPlugin::toolBarIndicators()
         // 首先获取基类的指示器列表
         _toolBarIndicatorList = QGCCorePlugin::toolBarIndicators();
         
-        // 添加QGC原生电量指示器
-        qDebug() << "CustomPlugin: Adding battery indicator";
-        _toolBarIndicatorList.append(QVariant::fromValue(QUrl("qrc:/qml/QGroundControl/Controls/BatteryIndicator.qml")));
-        
-        // 添加QGC原生GPS指示器
-        qDebug() << "CustomPlugin: Adding GPS indicator";
-        _toolBarIndicatorList.append(QVariant::fromValue(QUrl("qrc:/qml/QGroundControl/Toolbar/VehicleGPSIndicator.qml")));
-        
-        // 添加QGC原生遥控器指示器
-        qDebug() << "CustomPlugin: Adding RC RSSI indicator";
-        _toolBarIndicatorList.append(QVariant::fromValue(QUrl("qrc:/qml/QGroundControl/Toolbar/RCRSSIIndicator.qml")));
-        
         // 添加自定义连接状态指示器
         qDebug() << "CustomPlugin: Adding custom connection indicator";
         _toolBarIndicatorList.append(QVariant::fromValue(QUrl("qrc:/Custom/qml/CustomConnectionIndicator.qml")));
