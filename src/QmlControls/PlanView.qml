@@ -1285,15 +1285,16 @@ Item {
                 Layout.fillWidth:   true
                 visible:            statisticsSection.checked
 
-                QGCButton {
-                    text:               qsTr("任务列表")
-                    Layout.fillWidth:   true
-                    onClicked: {
-                        console.log("任务列表按钮被点击")
-                        dropPanel.hide()
-                        showMissionListDialog()
-                    }
-                }
+                // 任务列表按钮已移动到FlyViewCustomLayer.qml
+                // QGCButton {
+                //     text:               qsTr("任务列表")
+                //     Layout.fillWidth:   true
+                //     onClicked: {
+                //         console.log("任务列表按钮被点击")
+                //         dropPanel.hide()
+                //         showMissionListDialog()
+                //     }
+                // }
             }
 
             SectionHeader {

@@ -19,6 +19,7 @@ import QGroundControl.Palette
 import QGroundControl.ScreenTools
 
 import Custom.Widgets
+import Custom.Database 1.0
 
 /**
  * @brief 自定义飞行视图覆盖层
@@ -27,6 +28,7 @@ import Custom.Widgets
  * - 管理UI布局和工具边界
  * - 控制各种指示器的显示/隐藏
  * - 提供简洁的覆盖层UI
+ * - 提供任务列表访问功能
  */
 Item {
     property var parentToolInsets                       // These insets tell you what screen real estate is available for positioning the controls in your overlay
@@ -278,6 +280,102 @@ Item {
             vehicle:            _activeVehicle
             showHeading:        false
             anchors.centerIn:   parent
+        }
+    }
+
+    // ==================== 任务列表按钮 ====================
+    // 位置：左侧，自定义工具栏下方
+    Rectangle {
+        id:                     missionListButton
+        anchors.left:           parent.left
+        anchors.top:            parent.top
+        anchors.leftMargin:     _toolsMargin
+        anchors.topMargin:      _toolsMargin + parentToolInsets.topEdgeLeftInset
+        width:                  (parentToolInsets.leftEdgeTopInset - (_toolsMargin * 2)) * 4/3
+        height:                 ScreenTools.defaultFontPixelHeight * 1.67
+        radius:                 ScreenTools.defaultFontPixelWidth * 0.5
+        color:                  qgcPal.button
+        border.color:           qgcPal.buttonText
+        border.width:           1
+        
+        // 按钮内容 - 纯文字，无图标
+        QGCLabel {
+            anchors.centerIn:       parent
+            text:                   qsTr("任务列表")
+            color:                  qgcPal.buttonText
+            font.pointSize:         ScreenTools.defaultFontPointSize
+            horizontalAlignment:    Text.AlignHCenter
+        }
+        
+        // 鼠标交互
+        MouseArea {
+            id:                 missionButtonMouseArea
+            anchors.fill:       parent
+            hoverEnabled:       true
+            onClicked:          showMissionListDialog()
+            onEntered:          parent.color = qgcPal.buttonHighlight
+            onExited:           parent.color = qgcPal.button
+            onPressed:          parent.color = qgcPal.buttonHighlight
+            onReleased:         parent.color = containsMouse ? qgcPal.buttonHighlight : qgcPal.button
+            
+            // 悬停提示
+            ToolTip {
+                visible:        parent.containsMouse
+                text:           qsTr("点击查看任务列表")
+                delay:          1000
+            }
+        }
+    }
+
+    // ==================== 任务列表对话框功能 ====================
+    
+    // 任务列表对话框组件定义
+    function showMissionListDialog() {
+        console.log("FlyViewCustomLayer: 显示任务列表对话框")
+        
+        // 尝试获取mainWindow引用
+        var mainWindowRef = null
+        if (typeof mainWindow !== 'undefined') {
+            mainWindowRef = mainWindow
+        } else if (mapControl && mapControl.mainWindow) {
+            mainWindowRef = mapControl.mainWindow
+        } else {
+            // 通过父对象向上查找mainWindow
+            var obj = parent
+            while (obj && obj.parent) {
+                obj = obj.parent
+                if (obj.objectName === "MainWindow" || obj.toString().indexOf("MainWindow") !== -1) {
+                    mainWindowRef = obj
+                    break
+                }
+            }
+        }
+        
+        var component = Qt.createComponent("qrc:/Custom/MissionListDialog.qml")
+        if (component.status === Component.Ready) {
+            var dialog = component.createObject(mainWindowRef ? mainWindowRef : parent)
+            if (dialog) {
+                console.log("FlyViewCustomLayer: 任务列表对话框创建成功")
+                dialog.open()
+            } else {
+                console.error("FlyViewCustomLayer: 无法创建任务列表对话框对象")
+            }
+        } else if (component.status === Component.Loading) {
+            console.log("FlyViewCustomLayer: 任务列表对话框组件正在加载...")
+            // 等待组件加载完成
+            component.statusChanged.connect(function() {
+                if (component.status === Component.Ready) {
+                    showMissionListDialog()
+                } else if (component.status === Component.Error) {
+                    console.error("FlyViewCustomLayer: 任务列表对话框组件加载失败:", component.errorString())
+                }
+            })
+        } else {
+            console.error("FlyViewCustomLayer: 无法加载任务列表对话框组件:", component.errorString())
+            // 回退到简单的消息对话框
+            if (mainWindowRef && mainWindowRef.showMessageDialog) {
+                mainWindowRef.showMessageDialog(qsTr("错误"), qsTr("无法加载任务列表对话框: ") + component.errorString())
+            }
         }
     }
 
