@@ -18,6 +18,7 @@
 #include "BrandImageSettings.h"
 #include "SimpleMavlinkUdp.h"
 #include "Database/MissionDatabase.h"
+#include "MissionManager/MissionRecordingManager.h"
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
 #include <QtCore/QApplicationStatic>
@@ -398,6 +399,14 @@ QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent)
             return instance;
         });
 
+    // Register Mission Recording Manager
+    qmlRegisterSingletonType<MissionRecordingManager>("Custom.MissionManager", 1, 0, "MissionRecordingManager", 
+        [](QQmlEngine* engine, QJSEngine* scriptEngine) -> QObject* {
+            Q_UNUSED(engine)
+            Q_UNUSED(scriptEngine)
+            return MissionRecordingManager::create(engine, scriptEngine);
+        });
+
     _selector = new CustomOverrideInterceptor();
     _qmlEngine->addUrlInterceptor(_selector);
 
@@ -410,6 +419,18 @@ const QVariantList& CustomPlugin::toolBarIndicators()
     if (_toolBarIndicatorList.isEmpty()) {
         // 首先获取基类的指示器列表
         _toolBarIndicatorList = QGCCorePlugin::toolBarIndicators();
+        
+        // 添加QGC原生电量指示器
+        qDebug() << "CustomPlugin: Adding battery indicator";
+        _toolBarIndicatorList.append(QVariant::fromValue(QUrl("qrc:/qml/QGroundControl/Controls/BatteryIndicator.qml")));
+        
+        // 添加QGC原生GPS指示器
+        qDebug() << "CustomPlugin: Adding GPS indicator";
+        _toolBarIndicatorList.append(QVariant::fromValue(QUrl("qrc:/qml/QGroundControl/Toolbar/VehicleGPSIndicator.qml")));
+        
+        // 添加QGC原生遥控器指示器
+        qDebug() << "CustomPlugin: Adding RC RSSI indicator";
+        _toolBarIndicatorList.append(QVariant::fromValue(QUrl("qrc:/qml/QGroundControl/Toolbar/RCRSSIIndicator.qml")));
         
         // 添加自定义连接状态指示器
         qDebug() << "CustomPlugin: Adding custom connection indicator";

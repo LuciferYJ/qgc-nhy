@@ -24,10 +24,10 @@ Item {
     anchors.top:    parent.top
     anchors.bottom: parent.bottom
 
-    property bool showIndicator: _activeVehicle.supportsRadio && _rcRSSIAvailable
+    property bool showIndicator: _activeVehicle && _activeVehicle.supportsRadio && _rcRSSIAvailable
 
     property var    _activeVehicle:     QGroundControl.multiVehicleManager.activeVehicle
-    property bool   _rcRSSIAvailable:   _activeVehicle.rcRSSI > 0 && _activeVehicle.rcRSSI <= 100
+    property bool   _rcRSSIAvailable:   _activeVehicle && _activeVehicle.rcRSSI > 0 && _activeVehicle.rcRSSI <= 100
 
     Component {
         id: rcRSSIInfoPage
@@ -40,7 +40,7 @@ Item {
 
                 LabelledLabel {
                     label:      qsTr("RSSI")
-                    labelText:  _activeVehicle.rcRSSI + "%"
+                    labelText:  _activeVehicle ? _activeVehicle.rcRSSI + "%" : "---"
                 }
             }
         }

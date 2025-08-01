@@ -80,6 +80,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/UdpLink/SimpleMavlinkUdp.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Database/MissionDatabase.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Database/MissionDatabase.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MissionManager/MissionRecordingManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/MissionManager/MissionRecordingManager.h
     CACHE INTERNAL "" FORCE
 )
 

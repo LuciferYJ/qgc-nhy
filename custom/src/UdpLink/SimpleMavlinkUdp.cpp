@@ -2,6 +2,7 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QtMath>
+#include <QJsonParseError>
 
 // 静态成员初始化
 SimpleMavlinkUdp* SimpleMavlinkUdp::_instance = nullptr;
@@ -13,31 +14,21 @@ SimpleMavlinkUdp::SimpleMavlinkUdp(QObject *parent)
     , _connected(false)
     , _lastHeartbeatTime(0)
     , _timeoutTimer(nullptr)
-    , _missionState(0)
-    , _flightTime(0)
-    , _remainingDistance(0)
-    , _capturedImages(0)
-    , _locationStatus(0)
-    , _visualSubStatus(0)
-    , _satelliteCount(0)
-    , _locationAccuracy(0.0f)
+    , _missionStatus()      // 使用默认构造函数
+    , _locationStatus()     // 使用默认构造函数
 {
-    // 初始化MAVLink状态
-    memset(&_mavlinkStatus, 0, sizeof(_mavlinkStatus));
-    memset(&_mavlinkMessage, 0, sizeof(_mavlinkMessage));
-    
     // 创建超时检测定时器
     _timeoutTimer = new QTimer(this);
     _timeoutTimer->setInterval(1000); // 每秒检查一次
     connect(_timeoutTimer, &QTimer::timeout, this, &SimpleMavlinkUdp::_checkConnectionTimeout);
     
-    qDebug() << "SimpleMavlinkUdp: 初始化完成";
+    // qDebug() << "SimpleMavlinkUdp: JSON UDP通信初始化完成";
 }
 
 SimpleMavlinkUdp::~SimpleMavlinkUdp()
 {
     stop();
-    qDebug() << "SimpleMavlinkUdp: 析构完成";
+    // qDebug() << "SimpleMavlinkUdp: 析构完成";
 }
 
 SimpleMavlinkUdp* SimpleMavlinkUdp::create(QQmlEngine* qmlEngine, QJSEngine* jsEngine)
@@ -58,7 +49,7 @@ SimpleMavlinkUdp* SimpleMavlinkUdp::instance()
 bool SimpleMavlinkUdp::start(quint16 listenPort)
 {
     if (_socket) {
-        qDebug() << "SimpleMavlinkUdp: 已经启动，先停止再重新启动";
+        // qDebug() << "SimpleMavlinkUdp: 已经启动，先停止再重新启动";
         stop();
     }
     
@@ -69,7 +60,7 @@ bool SimpleMavlinkUdp::start(quint16 listenPort)
     
     // 绑定到指定端口
     if (!_socket->bind(QHostAddress::Any, _listenPort)) {
-        qWarning() << "SimpleMavlinkUdp: 无法绑定端口" << _listenPort << ":" << _socket->errorString();
+        // qWarning() << "SimpleMavlinkUdp: 无法绑定端口" << _listenPort << ":" << _socket->errorString();
         delete _socket;
         _socket = nullptr;
         return false;
@@ -81,7 +72,7 @@ bool SimpleMavlinkUdp::start(quint16 listenPort)
     // 启动超时检测
     _timeoutTimer->start();
     
-    qDebug() << "SimpleMavlinkUdp: 启动成功，监听端口:" << _listenPort;
+    // qDebug() << "SimpleMavlinkUdp: 启动成功，监听端口:" << _listenPort;
     return true;
 }
 
@@ -105,46 +96,95 @@ void SimpleMavlinkUdp::stop()
         emit connectedChanged();
     }
     
-    qDebug() << "SimpleMavlinkUdp: 已停止";
+    // qDebug() << "SimpleMavlinkUdp: 已停止";
 }
 
-bool SimpleMavlinkUdp::sendCommand(int command, float param1, float param2, float param3, float param4)
+// QML接口实现
+bool SimpleMavlinkUdp::sendJson(int messageType, const QJsonObject& data)
+{
+    return _sendJsonMessage(static_cast<MessageType>(messageType), data);
+}
+
+bool SimpleMavlinkUdp::sendHeartbeat()
+{
+    HeartbeatData data;
+    return sendHeartbeat(data);
+}
+
+bool SimpleMavlinkUdp::sendTakeoffCommand(const QString& missionUuid, const QString& action, float altitude)
+{
+    TakeoffCommand cmd;
+    cmd.action = action;
+    cmd.missionUuid = missionUuid;
+    cmd.altitude = altitude;
+    cmd.autoArm = true;
+    
+    return sendTakeoffCommand(cmd);
+}
+
+bool SimpleMavlinkUdp::sendMissionStatus(const QJsonObject& data)
+{
+    return _sendJsonMessage(MessageType::MISSION_STATUS, data);
+}
+
+bool SimpleMavlinkUdp::sendLocationStatus(const QJsonObject& data)
+{
+    return _sendJsonMessage(MessageType::LOCATION_STATUS, data);
+}
+
+// 结构体发送接口实现
+bool SimpleMavlinkUdp::sendHeartbeat(const HeartbeatData& data)
+{
+    return _sendJsonMessage(MessageType::HEARTBEAT, data.toJson());
+}
+
+bool SimpleMavlinkUdp::sendTakeoffCommand(const TakeoffCommand& cmd)
+{
+    return _sendJsonMessage(MessageType::TAKEOFF_COMMAND, cmd.toJson());
+}
+
+bool SimpleMavlinkUdp::sendMissionStatus(const MissionStatus& status)
+{
+    return _sendJsonMessage(MessageType::MISSION_STATUS, status.toJson());
+}
+
+bool SimpleMavlinkUdp::sendLocationStatus(const LocationStatus& status)
+{
+    return _sendJsonMessage(MessageType::LOCATION_STATUS, status.toJson());
+}
+
+bool SimpleMavlinkUdp::sendAckResponse(const AckResponse& ack)
+{
+    return _sendJsonMessage(MessageType::ACK_RESPONSE, ack.toJson());
+}
+
+QString SimpleMavlinkUdp::_createJsonMessage(MessageType type, const QJsonObject& data)
+{
+    QJsonObject message;
+    message["type"] = static_cast<int>(type);  // 直接使用数字类型
+    message["timestamp"] = QDateTime::currentMSecsSinceEpoch();
+    message["data"] = data;
+    
+    QJsonDocument doc(message);
+    return doc.toJson(QJsonDocument::Compact);
+}
+
+bool SimpleMavlinkUdp::_sendJsonMessage(MessageType type, const QJsonObject& data)
 {
     if (!_socket) {
-        qWarning() << "SimpleMavlinkUdp: UDP未启动，无法发送命令";
+        // qWarning() << "SimpleMavlinkUdp: UDP未启动，无法发送JSON消息";
         return false;
     }
     
-    // 构造MAVLink命令消息
-    mavlink_message_t message;
-    mavlink_command_long_t cmd;
-    
-    memset(&cmd, 0, sizeof(cmd));
-    cmd.target_system = 1;      // 目标系统ID
-    cmd.target_component = 1;   // 目标组件ID
-    cmd.command = command;
-    cmd.confirmation = 0;
-    cmd.param1 = param1;
-    cmd.param2 = param2;
-    cmd.param3 = param3;
-    cmd.param4 = param4;
-    cmd.param5 = 0;
-    cmd.param6 = 0;
-    cmd.param7 = 0;
-    
-    // 编码MAVLink消息
-    mavlink_msg_command_long_encode(1, 1, &message, &cmd);
-    
-    // 转换为字节数组
-    QByteArray buffer(MAVLINK_MAX_PACKET_LEN, 0);
-    int len = mavlink_msg_to_send_buffer((uint8_t*)buffer.data(), &message);
-    buffer.resize(len);
+    QString jsonStr = _createJsonMessage(type, data);
+    QByteArray jsonData = jsonStr.toUtf8();
     
     // 发送到本地8888端口（假设无人机在此端口监听）
-    qint64 bytesSent = _socket->writeDatagram(buffer, QHostAddress::LocalHost, 8888);
+    qint64 bytesSent = _socket->writeDatagram(jsonData, QHostAddress::LocalHost, 8888);
     
     bool success = (bytesSent > 0);
-    qDebug() << "SimpleMavlinkUdp: 发送命令" << command << "结果:" << (success ? "成功" : "失败");
+    // qDebug() << "SimpleMavlinkUdp: 发送JSON消息类型" << static_cast<int>(type) << "结果:" << (success ? "成功" : "失败");
+    // qDebug() << "内容:" << jsonStr;
     
     return success;
 }
@@ -160,117 +200,106 @@ void SimpleMavlinkUdp::_readPendingDatagrams()
         
         _socket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
         
-        // 解析MAVLink消息
-        for (int i = 0; i < datagram.size(); ++i) {
-            uint8_t c = static_cast<uint8_t>(datagram[i]);
-            
-            if (mavlink_parse_char(MAVLINK_COMM_0, c, &_mavlinkMessage, &_mavlinkStatus)) {
-                // 成功解析到一个完整的MAVLink消息
-                _parseMavlinkMessage(_mavlinkMessage);
-            }
+        // 解析JSON消息
+        QJsonParseError parseError;
+        QJsonDocument jsonDoc = QJsonDocument::fromJson(datagram, &parseError);
+        
+        if (parseError.error == QJsonParseError::NoError && jsonDoc.isObject()) {
+            // 成功解析为JSON消息
+            QJsonObject jsonMessage = jsonDoc.object();
+            _parseJsonMessage(jsonMessage);
+        } else {
+            // qWarning() << "SimpleMavlinkUdp: 收到无效的JSON数据:" << parseError.errorString();
+            // qDebug() << "原始数据:" << datagram;
         }
     }
 }
 
-void SimpleMavlinkUdp::_parseMavlinkMessage(const mavlink_message_t &message)
+void SimpleMavlinkUdp::_parseJsonMessage(const QJsonObject& message)
 {
-    // 处理心跳消息
-    if (message.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
-        // 更新最后心跳时间（只有心跳消息才更新）
+    // 验证基本格式
+    if (!message.contains("type") || !message.contains("data")) {
+        // qWarning() << "SimpleMavlinkUdp: JSON消息格式错误，缺少type或data字段";
+        return;
+    }
+    
+    int typeInt = message["type"].toInt();
+    MessageType msgType = static_cast<MessageType>(typeInt);  // 直接转换数字类型
+    QJsonObject data = message["data"].toObject();
+    
+    // qDebug() << "SimpleMavlinkUdp: 收到JSON消息类型:" << typeInt;
+    
+    // 根据消息类型处理
+    switch (msgType) {
+    case MessageType::HEARTBEAT:
+    {
+        // 更新最后心跳时间
         _lastHeartbeatTime = QDateTime::currentMSecsSinceEpoch();
         
         // 接收到心跳消息认为连接正常
         if (!_connected) {
             _connected = true;
             emit connectedChanged();
-            qDebug() << "SimpleMavlinkUdp: 收到心跳消息，连接已建立";
+            // qDebug() << "SimpleMavlinkUdp: 收到JSON心跳消息，连接已建立";
         }
         
-        qDebug() << "SimpleMavlinkUdp: 收到心跳消息";
+        // 解析心跳数据并发送信号
+        HeartbeatData heartbeat = HeartbeatData::fromJson(data);
+        emit heartbeatReceived(heartbeat);
+        break;
     }
-    // 处理任务状态数据消息
-    else if (message.msgid == MAVLINK_MSG_ID_NAMED_VALUE_INT) {
-        mavlink_named_value_int_t named_value;
-        mavlink_msg_named_value_int_decode(&message, &named_value);
-        
-        // 将name转换为字符串（确保以null结尾）
-        char name_str[11];  // 最多10个字符 + null终止符
-        memcpy(name_str, named_value.name, 10);
-        name_str[10] = '\0';
-        
-        QString name = QString::fromUtf8(name_str);
-        
-        if (name == "MISSION_ST") {
-            if (_missionState != named_value.value) {
-                _missionState = named_value.value;
-                emit missionStateChanged();
-            }
-            qDebug() << "SimpleMavlinkUdp: 收到任务状态数据" << "\"" << name << "\"" << "=" << named_value.value;
-        } else if (name == "FLIGHT_TM") {
-            if (_flightTime != named_value.value) {
-                _flightTime = named_value.value;
-                emit flightTimeChanged();
-            }
-            qDebug() << "SimpleMavlinkUdp: 收到任务状态数据" << "\"" << name << "\"" << "=" << named_value.value;
-        } else if (name == "REMAIN_DST") {
-            if (_remainingDistance != named_value.value) {
-                _remainingDistance = named_value.value;
-                emit remainingDistanceChanged();
-            }
-            qDebug() << "SimpleMavlinkUdp: 收到任务状态数据" << "\"" << name << "\"" << "=" << named_value.value;
-        } else if (name == "IMG_COUNT") {
-            if (_capturedImages != named_value.value) {
-                _capturedImages = named_value.value;
-                emit capturedImagesChanged();
-            }
-            qDebug() << "SimpleMavlinkUdp: 收到任务状态数据" << "\"" << name << "\"" << "=" << named_value.value;
-        } else if (name == "LOC_ST") {
-            // 位运算解析定位状态
-            int new_location_status = named_value.value & 0xFF;          // 低8位：主定位状态
-            int new_visual_sub_status = (named_value.value >> 8) & 0xFF; // 次8位：视觉子状态
-            
-            if (_locationStatus != new_location_status) {
-                _locationStatus = new_location_status;
-                emit locationStatusChanged();
-            }
-            if (_visualSubStatus != new_visual_sub_status) {
-                _visualSubStatus = new_visual_sub_status;
-                emit visualSubStatusChanged();
-            }
-            qDebug() << "SimpleMavlinkUdp: 收到定位状态数据" << "\"" << name << "\"" << "=" << named_value.value 
-                     << "(主状态:" << new_location_status << ", 子状态:" << new_visual_sub_status << ")";
-        } else if (name == "SAT_COUNT") {
-            if (_satelliteCount != named_value.value) {
-                _satelliteCount = named_value.value;
-                emit satelliteCountChanged();
-            }
-            qDebug() << "SimpleMavlinkUdp: 收到定位状态数据" << "\"" << name << "\"" << "=" << named_value.value;
-        }
+    case MessageType::TAKEOFF_COMMAND:
+    {
+        TakeoffCommand cmd = TakeoffCommand::fromJson(data);
+        emit takeoffCommandReceived(cmd);
+        // qDebug() << "SimpleMavlinkUdp: 收到起飞命令 -" << cmd.action << "UUID:" << cmd.missionUuid;
+        break;
     }
-    // 处理定位精度数据消息（浮点型）
-    else if (message.msgid == MAVLINK_MSG_ID_NAMED_VALUE_FLOAT) {
-        mavlink_named_value_float_t named_value_float;
-        mavlink_msg_named_value_float_decode(&message, &named_value_float);
-        
-        // 将name转换为字符串（确保以null结尾）
-        char name_str[11];  // 最多10个字符 + null终止符
-        memcpy(name_str, named_value_float.name, 10);
-        name_str[10] = '\0';
-        
-        QString name = QString::fromUtf8(name_str);
-        
-        if (name == "LOC_ACCUR") {
-            if (qAbs(_locationAccuracy - named_value_float.value) > 0.001f) {
-                _locationAccuracy = named_value_float.value;
-                emit locationAccuracyChanged();
-            }
+    case MessageType::MISSION_STATUS:
+    {
+        MissionStatus newStatus = MissionStatus::fromJson(data);
+        if (_missionStatus != newStatus) {
+            _missionStatus = newStatus;
+            emit missionStatusChanged();
+            emit missionStatusReceived(_missionStatus);
         }
+        // qDebug() << "SimpleMavlinkUdp: 更新任务状态 - 状态:" << _missionStatus.missionState 
+        //          << "时间:" << _missionStatus.flightTime << "距离:" << _missionStatus.remainingDistance 
+        //          << "图片:" << _missionStatus.capturedImages;
+        break;
+    }
+    case MessageType::LOCATION_STATUS:
+    {
+        LocationStatus newStatus = LocationStatus::fromJson(data);
+        if (_locationStatus != newStatus) {
+            _locationStatus = newStatus;
+            emit locationStatusChanged();
+            emit locationStatusReceived(_locationStatus);
+        }
+        // qDebug() << "SimpleMavlinkUdp: 更新定位状态 - 主状态:" << _locationStatus.locationStatus 
+        //          << "视觉:" << _locationStatus.visualSubStatus << "卫星:" << _locationStatus.satelliteCount 
+        //          << "精度:" << _locationStatus.accuracy;
+        break;
+    }
+    case MessageType::ACK_RESPONSE:
+    {
+        AckResponse ack = AckResponse::fromJson(data);
+        emit commandAckReceived(ack.success, ack.message);
+        emit ackResponseReceived(ack);
+        // qDebug() << "SimpleMavlinkUdp: 收到命令确认 -" << (ack.success ? "成功" : "失败") << ":" << ack.message;
+        break;
+    }
+    case MessageType::ERROR:
+        // qWarning() << "SimpleMavlinkUdp: 收到错误消息:" << data;
+        break;
         
-        qDebug() << "SimpleMavlinkUdp: 收到定位精度数据" << "\"" << name << "\"" << "=" << named_value_float.value;
+    default:
+        // qDebug() << "SimpleMavlinkUdp: 未处理的JSON消息类型:" << typeInt;
+        break;
     }
     
-    // 这里可以根据需要添加其他消息类型的处理
-    // 注意：其他消息不会影响连接状态判断
+    // 发送通用JSON消息信号
+    emit jsonReceived(static_cast<int>(msgType), data);
 }
 
 void SimpleMavlinkUdp::_checkConnectionTimeout()
@@ -286,7 +315,7 @@ void SimpleMavlinkUdp::_checkConnectionTimeout()
         // 超时，断开连接
         _connected = false;
         emit connectedChanged();
-        qDebug() << "SimpleMavlinkUdp: 连接超时，已断开连接。最后消息时间:" 
-                 << timeSinceLastMessage << "ms前";
+        // qDebug() << "SimpleMavlinkUdp: 连接超时，已断开连接。最后消息时间:" 
+        //          << timeSinceLastMessage << "ms前";
     }
 } 

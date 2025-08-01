@@ -56,21 +56,21 @@ Rectangle {
                 loops: Animation.Infinite
                 NumberAnimation { to: 0.3; duration: 800 }
                 NumberAnimation { to: 1.0; duration: 800 }
-            }
-        }
+                    }
+                }
 
         // 连接状态文字
-        QGCLabel {
+                    QGCLabel {
             text: "连接状态"
-            font.pointSize: ScreenTools.smallFontPointSize
-            color: qgcPal.text
+                        font.pointSize: ScreenTools.smallFontPointSize
+                        color: qgcPal.text
             Layout.fillWidth: true
-        }
+                    }
 
-        QGCLabel {
+                    QGCLabel {
             text: connectionStatus
-            font.pointSize: ScreenTools.smallFontPointSize
-            font.bold: true
+                        font.pointSize: ScreenTools.smallFontPointSize
+                        font.bold: true
             color: getConnectionStatusColor()
         }
     }

@@ -17,6 +17,15 @@ QtObject {
     // 获取应用程序根对象的引用
     property var _applicationWindow: null
     
+    // 消息类型常量 (与CustomUdpTypes.h中的MessageType枚举对应)
+    readonly property int msgHeartbeat: 0
+    readonly property int msgTakeoffCommand: 1
+    readonly property int msgSetHomeCommand: 2
+    readonly property int msgMissionStatus: 3
+    readonly property int msgLocationStatus: 4
+    readonly property int msgAckResponse: 5
+    readonly property int msgError: 6
+    
     Component.onCompleted: {
         // 尝试获取应用程序根窗口
         var obj = parent
@@ -24,19 +33,22 @@ QtObject {
             obj = obj.parent
         }
         _applicationWindow = obj
+        
+        // 连接JSON消息接收信号
+        SimpleMavlinkUdp.jsonReceived.connect(_onJsonReceived)
+        SimpleMavlinkUdp.commandAckReceived.connect(_onCommandAckReceived)
     }
+    
     // 用于存储当前操作的上下文信息
     property var _currentActionData: null
     property var _currentMapIndicator: null
     readonly property int actionCustomTakeoff: 10000 + 0  // customActionStart = 10000
     readonly property int actionCustomHome: 10000 + 1
     
-    // 起飞/结束状态控制
-    property bool _isTakeoffMode: true  // true=起飞模式, false=结束模式
-    
-    // 从SimpleMavlinkUdp获取任务状态并计算_canTakeoff
+    // 起飞/结束状态控制 - 独立的按钮状态
     property int _missionState: SimpleMavlinkUdp.missionState
-    property bool _canTakeoff: (_missionState === 1)  // 只有就绪状态(1)才可以起飞
+    property bool _isTakeoffMode: true  // 独立状态：true=起飞模式，false=结束模式
+    property bool _canTakeoff: (_missionState === 1)    // 只有就绪状态才能起飞
     
     // 地图点击模式控制
     property bool homePositionMapClickMode: false
@@ -50,6 +62,52 @@ QtObject {
         qsTr("执行自定义起飞逻辑，无需检查载具状态") : 
         qsTr("结束当前任务并返回待机状态")
     readonly property string customHomeMessage: qsTr("执行自定义设置Home逻辑")
+
+    // UUID生成函数 - 标准UUID v4格式
+    function generateMissionUuid() {
+        // 生成标准UUID格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+        function randomHex() {
+            return Math.floor(Math.random() * 16).toString(16);
+        }
+        
+        function randomHex4() {
+            return randomHex() + randomHex() + randomHex() + randomHex();
+        }
+        
+        function randomHex8() {
+            return randomHex4() + randomHex4();
+        }
+        
+        // UUID v4 格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+        var uuid = randomHex8() + "-" +                    // 8位
+                   randomHex4() + "-" +                    // 4位  
+                   "4" + randomHex() + randomHex() + randomHex() + "-" +  // 4xxx (版本4)
+                   (8 + Math.floor(Math.random() * 4)).toString(16) + randomHex() + randomHex() + randomHex() + "-" +  // yxxx (变体位)
+                   randomHex8() + randomHex4();            // 12位
+        
+        return uuid;
+    }
+    
+    // JSON消息接收处理
+    function _onJsonReceived(messageType, data) {
+        console.log("[JSON] 收到消息类型:", messageType, "数据:", JSON.stringify(data))
+        
+        // 可以根据需要处理特定的JSON消息
+        if (messageType === msgAckResponse) {
+            // 命令确认响应已经通过commandAckReceived信号处理
+        }
+    }
+    
+    function _onCommandAckReceived(success, message) {
+        console.log("[命令确认]", success ? "成功" : "失败", ":", message)
+        
+        if (success) {
+            // 命令执行成功，可以根据需要更新UI状态
+        } else {
+            // 命令执行失败，显示错误信息
+            console.error("[错误] 命令执行失败:", message)
+        }
+    }
 
     function customConfirmAction(actionCode, actionData, mapIndicator, confirmDialog) {
         // 保存当前操作的上下文信息
@@ -205,24 +263,22 @@ QtObject {
     }
     
     function _handleMyCustomTakeoff() {
-        // 根据当前状态决定param1的值
-        var param1Value = _isTakeoffMode ? 1.0 : 0.0
-        var actionName = _isTakeoffMode ? "起飞" : "结束"
+        // 基于当前按钮模式确定操作
+        var action = _isTakeoffMode ? "takeoff" : "land"
+        var missionUuid = generateMissionUuid()
+        var altitude = 50.0
         
-        console.log("[INFO] 执行" + actionName + "命令，param1=" + param1Value)
+        console.log("[INFO] 执行" + action + "命令，任务UUID:", missionUuid)
         
-        // 发送自定义MAVLink命令
-        var success = SimpleMavlinkUdp.sendCommand(
-            31010,      // MAV_CMD_USER_1
-            param1Value // param1: 1.0=起飞, 0.0=结束
-        )
+        // 使用新的JSON接口发送起飞命令
+        var success = SimpleMavlinkUdp.sendTakeoffCommand(missionUuid, action, altitude)
         
         if (success) {
-            // 命令发送成功，切换状态
+            console.log("[INFO]", action, "命令发送成功，任务UUID:", missionUuid)
+            // 切换按钮状态：起飞后变成结束模式，结束后变成起飞模式
             _isTakeoffMode = !_isTakeoffMode
-            console.log("[INFO] " + actionName + "命令发送成功，切换到" + (_isTakeoffMode ? "起飞" : "结束") + "模式")
         } else {
-            console.error("[UDP] 自定义" + actionName + "命令发送失败")
+            console.error("[ERROR] 自定义", action, "命令发送失败")
         }
     }
 
@@ -243,16 +299,21 @@ QtObject {
             return
         }
         
-        // 通过UDP发送设置Home位置的MAVLink命令
-        var success = SimpleMavlinkUdp.sendCommand(
-                31011,    // MAV_CMD_USER_2
-                1.0,      // param1 = 1.0 表示使用自定义坐标
-                latitude, // param2 = latitude
-                longitude,// param3 = longitude
-                altitude  // param4 = altitude
-            )
+        // 使用JSON接口发送设置Home位置的命令
+        var commandData = {
+            "coordinate": {
+                "latitude": latitude,
+                "longitude": longitude,
+                "altitude": altitude
+            },
+            "use_current_position": false
+        }
         
-        if (!success) {
+        var success = SimpleMavlinkUdp.sendJson(msgSetHomeCommand, commandData)
+        
+        if (success) {
+            console.log("[成功] Home位置设置命令发送成功:", latitude, longitude, altitude)
+        } else {
             console.error("[失败] Home位置设置命令发送失败")
         }
     }
