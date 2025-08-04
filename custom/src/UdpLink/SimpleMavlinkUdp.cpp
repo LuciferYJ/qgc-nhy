@@ -11,6 +11,7 @@ SimpleMavlinkUdp::SimpleMavlinkUdp(QObject *parent)
     : QObject(parent)
     , _socket(nullptr)
     , _listenPort(7777)
+    , _targetIP("127.0.0.1")
     , _connected(false)
     , _lastHeartbeatTime(0)
     , _timeoutTimer(nullptr)
@@ -22,6 +23,7 @@ SimpleMavlinkUdp::SimpleMavlinkUdp(QObject *parent)
     _timeoutTimer->setInterval(1000); // 每秒检查一次
     connect(_timeoutTimer, &QTimer::timeout, this, &SimpleMavlinkUdp::_checkConnectionTimeout);
     
+    qDebug() << "SimpleMavlinkUdp: 构造函数完成，初始IP:" << _targetIP;
     // qDebug() << "SimpleMavlinkUdp: JSON UDP通信初始化完成";
 }
 
@@ -42,6 +44,7 @@ SimpleMavlinkUdp* SimpleMavlinkUdp::instance()
 {
     if (!_instance) {
         _instance = new SimpleMavlinkUdp();
+        qDebug() << "SimpleMavlinkUdp: 创建单例实例";
     }
     return _instance;
 }
@@ -179,8 +182,8 @@ bool SimpleMavlinkUdp::_sendJsonMessage(MessageType type, const QJsonObject& dat
     QString jsonStr = _createJsonMessage(type, data);
     QByteArray jsonData = jsonStr.toUtf8();
     
-    // 发送到本地8888端口（假设无人机在此端口监听）
-    qint64 bytesSent = _socket->writeDatagram(jsonData, QHostAddress::LocalHost, 8888);
+    // 发送到指定的目标IP和端口
+    qint64 bytesSent = _socket->writeDatagram(jsonData, QHostAddress(_targetIP), 8888);
     
     bool success = (bytesSent > 0);
     // qDebug() << "SimpleMavlinkUdp: 发送JSON消息类型" << static_cast<int>(type) << "结果:" << (success ? "成功" : "失败");
@@ -318,4 +321,18 @@ void SimpleMavlinkUdp::_checkConnectionTimeout()
         // qDebug() << "SimpleMavlinkUdp: 连接超时，已断开连接。最后消息时间:" 
         //          << timeSinceLastMessage << "ms前";
     }
+} 
+
+void SimpleMavlinkUdp::setTargetIP(const QString& ip)
+{
+    if (_targetIP != ip) {
+        _targetIP = ip;
+        emit targetIPChanged();
+        qDebug() << "SimpleMavlinkUdp: 设置目标IP为" << _targetIP;
+    }
+}
+
+QString SimpleMavlinkUdp::getTargetIP() const
+{
+    return _targetIP;
 } 

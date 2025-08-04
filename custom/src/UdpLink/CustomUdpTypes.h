@@ -28,6 +28,8 @@ struct MissionStatus {
     int flightTime = 0;             // 飞行时间（秒）
     int remainingDistance = 0;      // 剩余航程（米）
     int capturedImages = 0;         // 采集图片张数
+    int flownDistance = 0;          // 已飞行长度（米）
+    int totalDistance = 0;          // 总航线长度（米）
     
     // 转换为JSON对象
     QJsonObject toJson() const {
@@ -36,6 +38,8 @@ struct MissionStatus {
         obj["flight_time"] = flightTime;
         obj["remaining_distance"] = remainingDistance;
         obj["captured_images"] = capturedImages;
+        obj["flown_distance"] = flownDistance;
+        obj["total_distance"] = totalDistance;
         return obj;
     }
     
@@ -46,6 +50,8 @@ struct MissionStatus {
         status.flightTime = obj["flight_time"].toInt();
         status.remainingDistance = obj["remaining_distance"].toInt();
         status.capturedImages = obj["captured_images"].toInt();
+        status.flownDistance = obj["flown_distance"].toInt();
+        status.totalDistance = obj["total_distance"].toInt();
         return status;
     }
     

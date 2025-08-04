@@ -273,7 +273,7 @@ Item {
     }
 
     // 移除防重复处理的变量和Timer，改为使用正确的信号
-    
+
     Connections {
         target: _missionController
 
@@ -1332,21 +1332,21 @@ Item {
         
         if (isCurrentRouteLinked) {
             // 弹框询问是否另存为
-            mainWindow.showMessageDialog(
+        mainWindow.showMessageDialog(
                 qsTr("航线另存为"),
                 qsTr("原始航线已关联任务，是否另存为？"),
-                Dialog.Yes | Dialog.No,
-                function() {
+            Dialog.Yes | Dialog.No,
+            function() {
                     // 用户选择确定，显示航线名称输入对话框
                     showSaveRouteNameDialog()
                 }
             )
-        } else {
+                } else {
             // 直接显示航线名称输入对话框
             showSaveRouteNameDialog()
         }
-    }
-    
+                }
+                
     // 显示航线名称输入对话框
     function showSaveRouteNameDialog() {
         var component = Qt.createComponent("qrc:/Custom/SaveRouteNameDialog.qml")
@@ -1362,10 +1362,10 @@ Item {
                     console.log("用户取消保存航线")
                 })
                 dialog.open()
-            } else {
+        } else {
                 console.error("无法创建航线名称对话框对象")
                 mainWindow.showMessageDialog(qsTr("错误"), qsTr("无法创建航线名称对话框"))
-            }
+        }
         } else if (component.status === Component.Loading) {
             console.log("航线名称对话框组件正在加载...")
             component.statusChanged.connect(function() {
@@ -1379,7 +1379,7 @@ Item {
         } else {
             console.error("航线名称对话框组件错误:", component.errorString())
             mainWindow.showMessageDialog(qsTr("错误"), qsTr("无法加载航线名称对话框: ") + component.errorString())
-        }
+            }
     }
 
 
@@ -1413,7 +1413,7 @@ Item {
             // 3. 逐个处理航点数据，直接创建对应的visual item
             for (var i = 0; i < waypoints.length; i++) {
                 var waypoint = waypoints[i]
-                      
+                
                 // 创建坐标对象
                 var coordinate = QtPositioning.coordinate(
                     waypoint.latitude,
@@ -1491,7 +1491,7 @@ Item {
                         false  // 不设为当前项
                     )
                     
-                    if (visualItem) { 
+                    if (visualItem) {
                         // 设置命令类型
                         visualItem.command = command
                         

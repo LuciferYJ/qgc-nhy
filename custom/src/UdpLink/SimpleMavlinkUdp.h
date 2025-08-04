@@ -21,11 +21,16 @@ class SimpleMavlinkUdp : public QObject
     
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
     
+    // 目标IP设置属性
+    Q_PROPERTY(QString targetIP READ getTargetIP WRITE setTargetIP NOTIFY targetIPChanged)
+    
     // 任务状态数据属性（为QML兼容性保持单独访问器）
     Q_PROPERTY(int missionState READ missionState NOTIFY missionStatusChanged)
     Q_PROPERTY(int flightTime READ flightTime NOTIFY missionStatusChanged)
     Q_PROPERTY(int remainingDistance READ remainingDistance NOTIFY missionStatusChanged)
     Q_PROPERTY(int capturedImages READ capturedImages NOTIFY missionStatusChanged)
+    Q_PROPERTY(int flownDistance READ flownDistance NOTIFY missionStatusChanged)
+    Q_PROPERTY(int totalDistance READ totalDistance NOTIFY missionStatusChanged)
     
     // 定位状态数据属性（为QML兼容性保持单独访问器）
     Q_PROPERTY(int locationStatus READ locationStatus NOTIFY locationStatusChanged)
@@ -49,6 +54,8 @@ public:
     int flightTime() const { return _missionStatus.flightTime; }
     int remainingDistance() const { return _missionStatus.remainingDistance; }
     int capturedImages() const { return _missionStatus.capturedImages; }
+    int flownDistance() const { return _missionStatus.flownDistance; }
+    int totalDistance() const { return _missionStatus.totalDistance; }
     
     // 定位状态数据访问器（QML兼容）
     int locationStatus() const { return _locationStatus.locationStatus; }
@@ -63,6 +70,10 @@ public:
     // 启动/停止UDP通信
     Q_INVOKABLE bool start(quint16 listenPort = 7777);
     Q_INVOKABLE void stop();
+    
+    // 设置目标IP地址
+    Q_INVOKABLE void setTargetIP(const QString& ip);
+    Q_INVOKABLE QString getTargetIP() const;
     
     // JSON收发接口
     Q_INVOKABLE bool sendJson(int messageType, const QJsonObject& data);
@@ -84,6 +95,7 @@ signals:
     void connectedChanged();
     void missionStatusChanged();
     void locationStatusChanged();
+    void targetIPChanged(); // Added for targetIP property
     
     // JSON消息信号
     void jsonReceived(int messageType, const QJsonObject& data);
@@ -108,6 +120,7 @@ private:
     // 网络
     QUdpSocket* _socket;
     quint16 _listenPort;
+    QString _targetIP;
     
     // 连接状态
     bool _connected;

@@ -17,6 +17,7 @@ import QGroundControl.Controls
 import QGroundControl.FactControls
 import QGroundControl.ScreenTools
 import QGroundControl.Palette
+import Custom.UdpLink
 
 SettingsPage {
     property var _linkManager:          QGroundControl.linkManager
@@ -45,6 +46,39 @@ SettingsPage {
                 text:               autoConnectRepeater.names[index]
                 fact:               modelData
                 visible:            modelData.visible
+            }
+        }
+    }
+
+    SettingsGroupLayout {
+        heading: qsTr("Custom UDP")
+
+        RowLayout {
+            Layout.fillWidth: true
+            
+            QGCLabel {
+                Layout.fillWidth: true
+                text: qsTr("IP Address")
+            }
+            
+            QGCTextField {
+                id: customUdpIPField
+                Layout.preferredWidth: ScreenTools.defaultFontPixelWidth * 40
+                text: SimpleMavlinkUdp.targetIP
+                placeholderText: qsTr("Enter IP address")
+                
+                property string lastSavedIP: SimpleMavlinkUdp.targetIP
+                
+                onEditingFinished: {
+                    if (text !== lastSavedIP) {
+                        lastSavedIP = text
+                        SimpleMavlinkUdp.setTargetIP(text)
+                    }
+                }     
+                
+                Component.onCompleted: {
+                    lastSavedIP = SimpleMavlinkUdp.targetIP
+                }
             }
         }
     }

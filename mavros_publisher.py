@@ -25,6 +25,8 @@ class MAVROSPublisher:
         self.flight_time_pub = rospy.Publisher('/mission/flight_time', Int32, queue_size=10)
         self.remaining_distance_pub = rospy.Publisher('/mission/remaining_distance', Int32, queue_size=10)
         self.captured_images_pub = rospy.Publisher('/mission/captured_images', Int32, queue_size=10)
+        self.flown_distance_pub = rospy.Publisher('/mission/flown_distance', Int32, queue_size=10)
+        self.total_distance_pub = rospy.Publisher('/mission/total_distance', Int32, queue_size=10)
         
         # ROS发布器 - 定位数据
         self.location_main_status_pub = rospy.Publisher('/location/main_status', Int32, queue_size=10)
@@ -68,13 +70,21 @@ class MAVROSPublisher:
         # 采集图片数
         captured_images = self.mission_time // 3 if current_state == 3 else 0
         
+        # 已飞行长度（米）
+        flown_distance = self.mission_time * 20 if current_state > 1 else 0
+        
+        # 总航线长度（米）- 固定值，可根据需要调整
+        total_distance = 1000
+        
         # 发布任务数据
         self.mission_state_pub.publish(Int32(data=current_state))
         self.flight_time_pub.publish(Int32(data=flight_time))
         self.remaining_distance_pub.publish(Int32(data=remaining_distance))
         self.captured_images_pub.publish(Int32(data=captured_images))
+        self.flown_distance_pub.publish(Int32(data=flown_distance))
+        self.total_distance_pub.publish(Int32(data=total_distance))
         
-        print(f"发布任务数据: 状态={current_state}, 时间={flight_time}s, 距离={remaining_distance}m, 图片={captured_images}")
+        print(f"发布任务数据: 状态={current_state}, 时间={flight_time}s, 剩余={remaining_distance}m, 已飞行={flown_distance}m, 总长={total_distance}m, 图片={captured_images}")
         
     def publish_location_data(self):
         """发布定位状态模拟数据"""

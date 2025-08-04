@@ -51,7 +51,9 @@ class MAVROSToQGCBridge:
             "mission_state": 0,
             "flight_time": 0,
             "remaining_distance": 0,
-            "captured_images": 0
+            "captured_images": 0,
+            "flown_distance": 0,
+            "total_distance": 0
         }
         
         # 定位状态结构数据
@@ -75,6 +77,8 @@ class MAVROSToQGCBridge:
         rospy.Subscriber('/mission/flight_time', Int32, self._flight_time_callback)
         rospy.Subscriber('/mission/remaining_distance', Int32, self._remaining_distance_callback)
         rospy.Subscriber('/mission/captured_images', Int32, self._captured_images_callback)
+        rospy.Subscriber('/mission/flown_distance', Int32, self._flown_distance_callback)
+        rospy.Subscriber('/mission/total_distance', Int32, self._total_distance_callback)
         
         # ROS订阅器 - 定位数据（整体结构）
         rospy.Subscriber('/location/main_status', Int32, self._location_main_status_callback)
@@ -300,6 +304,12 @@ class MAVROSToQGCBridge:
         
     def _captured_images_callback(self, msg):
         self.mission_status["captured_images"] = msg.data
+        
+    def _flown_distance_callback(self, msg):
+        self.mission_status["flown_distance"] = msg.data
+        
+    def _total_distance_callback(self, msg):
+        self.mission_status["total_distance"] = msg.data
         
     # ROS回调函数 - 定位数据（更新结构体）
     def _location_main_status_callback(self, msg):
